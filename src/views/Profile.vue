@@ -115,89 +115,18 @@
     </section>
 
     <!-- LOGIN MODAL -->
-    <div v-if="showLogin" class="modal-overlay" @click.self="showLogin = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Login</h2>
-          <button class="modal-close" @click="showLogin = false">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form @submit.prevent="handleLogin">
-            <div class="form-group">
-              <label>E-mail</label>
-              <input type="email" v-model="loginForm.email" required />
-            </div>
-            <div class="form-group">
-              <label>Wachtwoord</label>
-              <input type="password" v-model="loginForm.password" required />
-            </div>
-            <button type="submit" class="btn-submit">Inloggen</button>
-          </form>
-        </div>
-      </div>
-    </div>
+    <Login 
+      :isOpen="showLogin" 
+      @close="showLogin = false"
+      @login="handleLogin"
+    />
 
     <!-- REGISTER MODAL -->
-    <div v-if="showRegister" class="modal-overlay" @click.self="showRegister = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Registreren</h2>
-          <button class="modal-close" @click="showRegister = false">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form @submit.prevent="handleRegister">
-            <div class="form-group">
-              <label>Voornaam</label>
-              <input type="text" v-model="registerForm.firstName" required />
-            </div>
-            <div class="form-group">
-              <label>Achternaam</label>
-              <input type="text" v-model="registerForm.lastName" required />
-            </div>
-            <div class="form-group">
-              <label>E-mail</label>
-              <input type="email" v-model="registerForm.email" required />
-            </div>
-            <div class="form-group">
-              <label>Wachtwoord</label>
-              <input type="password" v-model="registerForm.password" required />
-            </div>
-            <div class="form-group">
-              <label>Leeftijd</label>
-              <input type="number" v-model="registerForm.age" required />
-            </div>
-            <div class="form-group">
-              <label>Stad</label>
-              <input type="text" v-model="registerForm.campusCity" required />
-            </div>
-            <div class="form-group">
-              <label>Geslacht</label>
-              <select v-model="registerForm.gender" required>
-                <option value="">Selecteer</option>
-                <option value="Man">Man</option>
-                <option value="Vrouw">Vrouw</option>
-                <option value="Anders">Anders</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Bio</label>
-              <textarea v-model="registerForm.bio" rows="3"></textarea>
-            </div>
-            <button type="submit" class="btn-submit">Registreren</button>
-          </form>
-        </div>
-      </div>
-    </div>
+    <Register 
+      :isOpen="showRegister" 
+      @close="showRegister = false"
+      @register="handleRegister"
+    />
 
     <!-- ADD/EDIT VENUE MODAL -->
     <div v-if="showAddVenue || editingVenueIndex !== null" class="modal-overlay" @click.self="closeVenueModal">
@@ -254,6 +183,8 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import Login from '@/views/Login.vue'
+import Register from '@/views/Register.vue'
 
 // User Info (Placeholder - Later van API)
 const userInfo = ref({
@@ -302,22 +233,7 @@ const showRegister = ref(false)
 const showAddVenue = ref(false)
 const editingVenueIndex = ref(null)
 
-// Forms
-const loginForm = ref({
-  email: '',
-  password: ''
-})
-
-const registerForm = ref({
-  firstName: '',
-  lastName: '',
-  email: '',
-  password: '',
-  age: null,
-  campusCity: '',
-  gender: '',
-  bio: ''
-})
+// Forms removed - now handled in Login.vue and Register.vue components
 
 const venueForm = ref({
   name: '',
@@ -333,16 +249,16 @@ const userVenues = ref([
   // Placeholder - Later van API
 ])
 
-const handleLogin = () => {
+const handleLogin = (loginData) => {
   // Placeholder: Later koppelen aan API
-  console.log('Login:', loginForm.value)
+  console.log('Login:', loginData)
   // TODO: API call
   showLogin.value = false
 }
 
-const handleRegister = () => {
+const handleRegister = (registerData) => {
   // Placeholder: Later koppelen aan API
-  console.log('Register:', registerForm.value)
+  console.log('Register:', registerData)
   // TODO: API call
   showRegister.value = false
 }
@@ -680,7 +596,7 @@ const closeVenueModal = () => {
   border-style: solid;
 }
 
-/* MODAL */
+/* VENUE MODAL */
 .modal-overlay {
   position: fixed;
   top: 0;
