@@ -1,4 +1,484 @@
 <template>
-  <h1>Social</h1>
-  <p>Welkom op de Social pagina</p>
+  <main class="content">
+    <!-- SEARCH BAR -->
+    <section class="search-section">
+      <div class="search-container">
+        <input 
+          type="text" 
+          class="search-input" 
+          placeholder="Zoek naar vrienden..." 
+          v-model="searchQuery"
+        />
+        <button class="search-button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- SUGGESTED FRIENDS -->
+    <section class="friends-section">
+      <h2>Voorgestelde Vrienden</h2>
+      <div class="friends-list horizontal">
+        <div 
+          v-for="suggested in suggestedFriends" 
+          :key="suggested.id" 
+          class="friend-card"
+        >
+          <div class="friend-avatar">
+            <span>{{ suggested.initials }}</span>
+          </div>
+          <p class="friend-name">{{ suggested.name }}</p>
+          <button class="btn-add-friend" @click="addFriend(suggested.id)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Toevoegen
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- FRIENDS LIST -->
+    <section class="friends-section">
+      <h2>Mijn Vrienden</h2>
+      <div class="friends-list horizontal">
+        <div 
+          v-for="friend in filteredFriends" 
+          :key="friend.id" 
+          class="friend-card interactive"
+          @mouseenter="hoveredFriend = friend.id"
+          @mouseleave="hoveredFriend = null"
+        >
+          <div class="friend-avatar">
+            <span>{{ friend.initials }}</span>
+          </div>
+          <p class="friend-name">{{ friend.name }}</p>
+          
+          <!-- Hover Options -->
+          <div class="friend-options" v-if="hoveredFriend === friend.id">
+            <button class="btn-option btn-chat" @click="openChat(friend.id)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              Chat
+            </button>
+            <button class="btn-option btn-remove" @click="removeFriend(friend.id)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              Verwijderen
+            </button>
+          </div>
+          
+          <!-- Default View (when not hovered) -->
+          <div class="friend-status" v-else>
+            <span class="status-dot" :class="friend.isOnline ? 'online' : 'offline'"></span>
+            <span class="status-text">{{ friend.isOnline ? 'Online' : 'Offline' }}</span>
+          </div>
+        </div>
+        
+        <!-- Empty state -->
+        <div v-if="filteredFriends.length === 0" class="empty-state">
+          <p>Geen vrienden gevonden</p>
+        </div>
+      </div>
+    </section>
+  </main>
 </template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+const searchQuery = ref('')
+const hoveredFriend = ref(null)
+
+// Placeholder suggested friends data
+const suggestedFriends = ref([
+  {
+    id: 1,
+    name: 'Jan Jansen',
+    initials: 'JJ'
+  },
+  {
+    id: 2,
+    name: 'Maria de Vries',
+    initials: 'MV'
+  },
+  {
+    id: 3,
+    name: 'Pieter Bakker',
+    initials: 'PB'
+  },
+  {
+    id: 4,
+    name: 'Lisa van der Berg',
+    initials: 'LB'
+  },
+  {
+    id: 5,
+    name: 'Tom Smit',
+    initials: 'TS'
+  }
+])
+
+// Placeholder friends data
+const friends = ref([
+  {
+    id: 10,
+    name: 'Emma van Dijk',
+    initials: 'ED',
+    isOnline: true
+  },
+  {
+    id: 11,
+    name: 'Lucas Mulder',
+    initials: 'LM',
+    isOnline: true
+  },
+  {
+    id: 12,
+    name: 'Sophie de Boer',
+    initials: 'SB',
+    isOnline: false
+  },
+  {
+    id: 13,
+    name: 'Noah Visser',
+    initials: 'NV',
+    isOnline: true
+  },
+  {
+    id: 14,
+    name: 'Eva Meijer',
+    initials: 'EM',
+    isOnline: false
+  },
+  {
+    id: 15,
+    name: 'Daan de Wit',
+    initials: 'DW',
+    isOnline: true
+  }
+])
+
+const filteredFriends = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return friends.value
+  }
+  
+  const query = searchQuery.value.toLowerCase()
+  return friends.value.filter(friend => 
+    friend.name.toLowerCase().includes(query)
+  )
+})
+
+const addFriend = (friendId) => {
+  // Placeholder: Later koppelen aan API
+  console.log('Vriend toevoegen:', friendId)
+  // TODO: API call om vriend toe te voegen
+}
+
+const removeFriend = (friendId) => {
+  // Placeholder: Later koppelen aan API
+  if (confirm('Weet je zeker dat je deze vriend wilt verwijderen?')) {
+    console.log('Vriend verwijderen:', friendId)
+    // TODO: API call om vriend te verwijderen
+    friends.value = friends.value.filter(f => f.id !== friendId)
+  }
+}
+
+const openChat = (friendId) => {
+  // Navigate to chat page with friend ID
+  router.push({ path: '/chat', query: { friendId } })
+}
+</script>
+
+<style scoped>
+.content {
+  flex: 1;
+  padding: 64px;
+  color: #eaeaea;
+  background-color: #0f0f0f;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+/* Search Section */
+.search-section {
+  width: 100%;
+  max-width: 800px;
+  margin-bottom: 48px;
+}
+
+.search-container {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.search-input {
+  flex: 1;
+  padding: 16px 24px;
+  background: rgba(18, 18, 18, 0.85);
+  border: 1px solid #1f1f1f;
+  border-radius: 12px;
+  color: #eaeaea;
+  font-size: 16px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  border-color: #9b5cff;
+  box-shadow: 0 0 0 3px rgba(155, 92, 255, 0.1);
+}
+
+.search-input::placeholder {
+  color: #666;
+}
+
+.search-button {
+  padding: 16px 24px;
+  background: #9b5cff;
+  border: none;
+  border-radius: 12px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.search-button:hover {
+  background: #8a4de6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(155, 92, 255, 0.3);
+}
+
+/* Friends Section */
+.friends-section {
+  width: 100%;
+  max-width: 800px;
+  margin-bottom: 48px;
+}
+
+.friends-section h2 {
+  font-size: 32px;
+  color: #9b5cff;
+  margin-bottom: 24px;
+}
+
+.friends-list {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+}
+
+.friends-list.horizontal {
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155, 92, 255, 0.3) rgba(15, 15, 15, 0.5);
+  /* Show max 4 cards at once: 4 cards (180px) + 3 gaps (16px) = 768px */
+  max-width: 768px;
+}
+
+.friends-list.horizontal::-webkit-scrollbar {
+  height: 8px;
+}
+
+.friends-list.horizontal::-webkit-scrollbar-track {
+  background: rgba(15, 15, 15, 0.5);
+  border-radius: 4px;
+}
+
+.friends-list.horizontal::-webkit-scrollbar-thumb {
+  background: rgba(155, 92, 255, 0.3);
+  border-radius: 4px;
+}
+
+.friends-list.horizontal::-webkit-scrollbar-thumb:hover {
+  background: rgba(155, 92, 255, 0.5);
+}
+
+/* Friend Card */
+.friend-card {
+  min-width: 180px;
+  width: 180px;
+  flex-shrink: 0;
+  background: rgba(18, 18, 18, 0.85);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid #1f1f1f;
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.friend-card.interactive {
+  cursor: pointer;
+}
+
+.friend-card.interactive:hover {
+  border-color: #9b5cff;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(155, 92, 255, 0.2);
+}
+
+.friend-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #9b5cff 0%, #6d28d9 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 600;
+  color: white;
+  box-shadow: 0 4px 12px rgba(155, 92, 255, 0.3);
+}
+
+.friend-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #eaeaea;
+  margin: 0;
+  text-align: center;
+}
+
+/* Add Friend Button */
+.btn-add-friend {
+  width: 100%;
+  padding: 10px 16px;
+  background: #9b5cff;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.3s ease;
+}
+
+.btn-add-friend:hover {
+  background: #8a4de6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(155, 92, 255, 0.3);
+}
+
+/* Friend Status */
+.friend-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #999;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+.status-dot.offline {
+  background: #666;
+}
+
+/* Friend Options (on hover) */
+.friend-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.btn-option {
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.3s ease;
+}
+
+.btn-chat {
+  background: #9b5cff;
+  color: white;
+}
+
+.btn-chat:hover {
+  background: #8a4de6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(155, 92, 255, 0.3);
+}
+
+.btn-remove {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-remove:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Empty State */
+.empty-state {
+  min-width: 100%;
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 16px;
+}
+</style>
