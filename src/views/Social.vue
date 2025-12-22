@@ -60,6 +60,13 @@
           
           <!-- Hover Options -->
           <div class="friend-options" v-if="hoveredFriend === friend.id">
+            <button class="btn-option btn-view-id" @click="viewFriendId(friend.id)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              Bekijk ID
+            </button>
             <button class="btn-option btn-chat" @click="openChat(friend.id)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -88,6 +95,69 @@
         </div>
       </div>
     </section>
+
+    <!-- FRIEND ID CARD MODAL -->
+    <div v-if="showFriendIdCard" class="modal-overlay" @click.self="showFriendIdCard = false">
+      <div class="modal id-card-modal">
+        <div class="modal-header">
+          <h2>ID Kaart</h2>
+          <button class="modal-close" @click="showFriendIdCard = false">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body id-card-body-content">
+          <div v-if="selectedFriend" class="id-card-view">
+            <div class="id-card-header-view">
+              <h3>UitgaansFinder</h3>
+              <span class="id-type-view">ID Kaart</span>
+            </div>
+            
+            <div class="id-card-content">
+              <div class="id-photo-view">
+                <div 
+                  class="id-photo-avatar" 
+                  :style="{ background: `linear-gradient(135deg, ${selectedFriend.avatarColor || '#9b5cff'} 0%, ${selectedFriend.avatarColorDark || '#6d28d9'} 100%)` }"
+                >
+                  <span>{{ selectedFriend.initials }}</span>
+                </div>
+              </div>
+              
+              <div class="id-info-view">
+                <div class="id-field-view">
+                  <span class="id-label-view">Naam:</span>
+                  <span class="id-value-view">{{ selectedFriend.firstName }} {{ selectedFriend.lastName }}</span>
+                </div>
+                <div class="id-field-view">
+                  <span class="id-label-view">Leeftijd:</span>
+                  <span class="id-value-view">{{ selectedFriend.age }} jaar</span>
+                </div>
+                <div class="id-field-view">
+                  <span class="id-label-view">Stad:</span>
+                  <span class="id-value-view">{{ selectedFriend.campusCity }}</span>
+                </div>
+                <div class="id-field-view">
+                  <span class="id-label-view">Geslacht:</span>
+                  <span class="id-value-view">{{ selectedFriend.gender }}</span>
+                </div>
+                <div class="id-field-view">
+                  <span class="id-label-view">Bio:</span>
+                  <span class="id-value-view">{{ selectedFriend.bio || 'Geen bio' }}</span>
+                </div>
+                <div class="id-field-view">
+                  <span class="id-label-view">Rol:</span>
+                  <span class="id-value-view role-badge-view" :class="(selectedFriend.role || 'User').toLowerCase()">
+                    {{ selectedFriend.role || 'User' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 </template>
 
@@ -98,6 +168,8 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const searchQuery = ref('')
 const hoveredFriend = ref(null)
+const showFriendIdCard = ref(false)
+const selectedFriend = ref(null)
 
 // Placeholder suggested friends data
 const suggestedFriends = ref([
@@ -133,38 +205,92 @@ const friends = ref([
   {
     id: 10,
     name: 'Emma van Dijk',
+    firstName: 'Emma',
+    lastName: 'van Dijk',
     initials: 'ED',
-    isOnline: true
+    isOnline: true,
+    age: 23,
+    campusCity: 'Amsterdam',
+    gender: 'Vrouw',
+    bio: 'Liefhebber van muziek en dansen',
+    role: 'User',
+    avatarColor: '#3b82f6',
+    avatarColorDark: '#1e40af'
   },
   {
     id: 11,
     name: 'Lucas Mulder',
+    firstName: 'Lucas',
+    lastName: 'Mulder',
     initials: 'LM',
-    isOnline: true
+    isOnline: true,
+    age: 25,
+    campusCity: 'Utrecht',
+    gender: 'Man',
+    bio: 'Altijd op zoek naar nieuwe plekken',
+    role: 'User',
+    avatarColor: '#10b981',
+    avatarColorDark: '#059669'
   },
   {
     id: 12,
     name: 'Sophie de Boer',
+    firstName: 'Sophie',
+    lastName: 'de Boer',
     initials: 'SB',
-    isOnline: false
+    isOnline: false,
+    age: 22,
+    campusCity: 'Rotterdam',
+    gender: 'Vrouw',
+    bio: 'Fotograaf en uitgaansliefhebber',
+    role: 'User',
+    avatarColor: '#ec4899',
+    avatarColorDark: '#be185d'
   },
   {
     id: 13,
     name: 'Noah Visser',
+    firstName: 'Noah',
+    lastName: 'Visser',
     initials: 'NV',
-    isOnline: true
+    isOnline: true,
+    age: 24,
+    campusCity: 'Amsterdam',
+    gender: 'Man',
+    bio: 'DJ en muziek producer',
+    role: 'VenueOwner',
+    avatarColor: '#9b5cff',
+    avatarColorDark: '#6d28d9'
   },
   {
     id: 14,
     name: 'Eva Meijer',
+    firstName: 'Eva',
+    lastName: 'Meijer',
     initials: 'EM',
-    isOnline: false
+    isOnline: false,
+    age: 21,
+    campusCity: 'Den Haag',
+    gender: 'Vrouw',
+    bio: 'Student en feestganger',
+    role: 'User',
+    avatarColor: '#f59e0b',
+    avatarColorDark: '#d97706'
   },
   {
     id: 15,
     name: 'Daan de Wit',
+    firstName: 'Daan',
+    lastName: 'de Wit',
     initials: 'DW',
-    isOnline: true
+    isOnline: true,
+    age: 26,
+    campusCity: 'Amsterdam',
+    gender: 'Man',
+    bio: 'Bar eigenaar en cocktail expert',
+    role: 'VenueOwner',
+    avatarColor: '#ef4444',
+    avatarColorDark: '#dc2626'
   }
 ])
 
@@ -197,6 +323,14 @@ const removeFriend = (friendId) => {
 const openChat = (friendId) => {
   // Navigate to chat page with friend ID
   router.push({ path: '/chat', query: { friendId } })
+}
+
+const viewFriendId = (friendId) => {
+  const friend = friends.value.find(f => f.id === friendId)
+  if (friend) {
+    selectedFriend.value = friend
+    showFriendIdCard.value = true
+  }
 }
 </script>
 
@@ -480,5 +614,178 @@ const openChat = (friendId) => {
 .empty-state p {
   margin: 0;
   font-size: 16px;
+}
+
+/* ID CARD MODAL */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.id-card-modal {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  max-width: 600px;
+}
+
+.id-card-modal .modal-header {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.id-card-modal .modal-header h2 {
+  display: none;
+}
+
+.id-card-modal .modal-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  background: rgba(18, 18, 18, 0.9);
+  border: 1px solid #1f1f1f;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.id-card-body-content {
+  padding: 0;
+}
+
+.id-card-view {
+  background: rgba(18, 18, 18, 0.95);
+  border: 2px solid #1f1f1f;
+  border-radius: 20px;
+  overflow: hidden;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.id-card-header-view {
+  background: linear-gradient(135deg, #9b5cff 0%, #6d28d9 100%);
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.id-card-header-view h3 {
+  font-size: 24px;
+  color: white;
+  margin: 0;
+}
+
+.id-type-view {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.id-card-content {
+  padding: 32px;
+  display: flex;
+  gap: 32px;
+}
+
+.id-photo-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.id-photo-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: 3px solid rgba(255, 255, 255, 0.1);
+}
+
+.id-photo-avatar span {
+  font-size: 36px;
+  font-weight: 700;
+  color: white;
+}
+
+.id-info-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.id-field-view {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.id-label-view {
+  font-size: 12px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.id-value-view {
+  font-size: 16px;
+  color: #eaeaea;
+  font-weight: 500;
+}
+
+.role-badge-view {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.role-badge-view.venueowner {
+  background: rgba(155, 92, 255, 0.2);
+  color: #9b5cff;
+  border: 1px solid rgba(155, 92, 255, 0.3);
+}
+
+.role-badge-view.admin {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.role-badge-view.user {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.btn-view-id {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-view-id:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 </style>
