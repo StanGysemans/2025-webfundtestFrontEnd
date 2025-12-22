@@ -43,19 +43,23 @@
           <div class="id-info">
             <div class="id-field">
               <span class="id-label">Naam:</span>
-              <span class="id-value">{{ userInfo.firstName }} {{ userInfo.lastName }}</span>
+              <span class="id-value">
+                {{ userInfo.firstName || userInfo.lastName 
+                  ? `${userInfo.firstName || ''} ${userInfo.lastName || ''}`.trim() 
+                  : 'Niet ingelogd' }}
+              </span>
             </div>
             <div class="id-field">
               <span class="id-label">Leeftijd:</span>
-              <span class="id-value">{{ userInfo.age }} jaar</span>
+              <span class="id-value">{{ userInfo.age ? `${userInfo.age} jaar` : '-' }}</span>
             </div>
             <div class="id-field">
               <span class="id-label">Stad:</span>
-              <span class="id-value">{{ userInfo.campusCity }}</span>
+              <span class="id-value">{{ userInfo.campusCity || '-' }}</span>
             </div>
             <div class="id-field">
               <span class="id-label">Geslacht:</span>
-              <span class="id-value">{{ userInfo.gender }}</span>
+              <span class="id-value">{{ userInfo.gender || '-' }}</span>
             </div>
             <div class="id-field">
               <span class="id-label">Bio:</span>
@@ -63,17 +67,30 @@
             </div>
             <div class="id-field">
               <span class="id-label">Rol:</span>
-              <span class="id-value role-badge" :class="userInfo.role.toLowerCase()">
-                {{ userInfo.role }}
-              </span>
+              <div class="role-container">
+                <span class="id-value role-badge" :class="(userInfo.role || 'user').toLowerCase()">
+                  {{ userInfo.role || 'Geen rol' }}
+                </span>
+                <button 
+                  v-if="!isVenueOwner && isAuthenticated" 
+                  class="btn-apply-role" 
+                  @click="showRoleRequestModal = true"
+                  :disabled="hasPendingRequest"
+                >
+                  {{ hasPendingRequest ? 'Aanvraag in behandeling' : 'Word Venue Owner' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
         
         <div class="id-card-footer">
-          <div class="auth-buttons">
+          <div class="auth-buttons" v-if="!isAuthenticated">
             <button class="btn-auth" @click="showLogin = true">Login</button>
             <button class="btn-auth" @click="showRegister = true">Registreren</button>
+          </div>
+          <div v-else class="logout-button">
+            <button class="btn-logout" @click="handleLogout">Uitloggen</button>
           </div>
         </div>
       </div>
@@ -127,6 +144,43 @@
       @close="showRegister = false"
       @register="handleRegister"
     />
+
+    <!-- ROLE REQUEST MODAL -->
+    <div v-if="showRoleRequestModal" class="modal-overlay" @click.self="showRoleRequestModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Venue Owner Aanvraag</h2>
+          <button class="modal-close" @click="showRoleRequestModal = false">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="submitRoleRequest">
+            <div v-if="roleRequestError" class="error-message">
+              {{ roleRequestError }}
+            </div>
+            <div v-if="roleRequestSuccess" class="success-message">
+              {{ roleRequestSuccess }}
+            </div>
+            <div class="form-group">
+              <label>Waarom wil je venue owner worden?</label>
+              <textarea 
+                v-model="roleRequestMessage" 
+                rows="4" 
+                placeholder="Beschrijf waarom je venue owner wilt worden..."
+                :disabled="roleRequestLoading"
+              ></textarea>
+            </div>
+            <button type="submit" class="btn-submit" :disabled="roleRequestLoading">
+              {{ roleRequestLoading ? 'Verzenden...' : 'Aanvraag Verzenden' }}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
 
     <!-- ADD/EDIT VENUE MODAL -->
     <div v-if="showAddVenue || editingVenueIndex !== null" class="modal-overlay" @click.self="closeVenueModal">
@@ -182,24 +236,44 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Login from '@/views/Login.vue'
 import Register from '@/views/Register.vue'
+import { useAuth } from '@/composables/useAuth.js'
+import { usersService } from '@/services/users.service.js'
+import { roleRequestsService } from '@/services/rolerequests.service.js'
 
-// User Info (Placeholder - Later van API)
+const { isAuthenticated, user } = useAuth()
+
+// User Info - leeg als niet ingelogd
 const userInfo = ref({
-  firstName: 'Jan',
-  lastName: 'Jansen',
-  age: 25,
-  campusCity: 'Amsterdam',
-  gender: 'Man',
-  bio: 'Liefhebber van uitgaan en nieuwe plekken ontdekken',
-  role: 'User' // User, VenueOwner, Admin
+  firstName: '',
+  lastName: '',
+  age: null,
+  campusCity: '',
+  gender: '',
+  bio: '',
+  role: ''
 })
 
-// Avatar Color Personalization
-const avatarColor = ref('#9b5cff')
-const avatarColorDark = ref('#6d28d9')
+const loading = ref(false)
+
+// Avatar Color Personalization - Load from localStorage or use default
+const getStoredColor = () => {
+  const stored = localStorage.getItem('avatarColor')
+  if (stored) {
+    try {
+      return JSON.parse(stored)
+    } catch (e) {
+      return { value: '#9b5cff', dark: '#6d28d9' }
+    }
+  }
+  return { value: '#9b5cff', dark: '#6d28d9' }
+}
+
+const storedColor = getStoredColor()
+const avatarColor = ref(storedColor.value)
+const avatarColorDark = ref(storedColor.dark)
 const showColorPicker = ref(false)
 
 const colorOptions = [
@@ -216,22 +290,132 @@ const colorOptions = [
 const selectColor = (color) => {
   avatarColor.value = color.value
   avatarColorDark.value = color.dark
+  // Save to localStorage
+  localStorage.setItem('avatarColor', JSON.stringify({ value: color.value, dark: color.dark }))
   showColorPicker.value = false
 }
 
 const userInitials = computed(() => {
-  return `${userInfo.value.firstName[0]}${userInfo.value.lastName[0]}`.toUpperCase()
+  if (userInfo.value.firstName && userInfo.value.lastName) {
+    return `${userInfo.value.firstName[0]}${userInfo.value.lastName[0]}`.toUpperCase()
+  }
+  return '??'
 })
 
 const isVenueOwner = computed(() => {
-  return userInfo.value.role === 'VenueOwner' || userInfo.value.role === 'Admin'
+  const role = userInfo.value.role || user.value?.Role || ''
+  return role === 'VenueOwner' || role === 'venue_owner' || role === 'Admin' || role === 'admin'
+})
+
+// Fetch user data from API
+const fetchUserData = async () => {
+  if (!isAuthenticated.value || !user.value?.UserID) {
+    // Reset to empty if not logged in
+    userInfo.value = {
+      firstName: '',
+      lastName: '',
+      age: null,
+      campusCity: '',
+      gender: '',
+      bio: '',
+      role: ''
+    }
+    return
+  }
+
+  loading.value = true
+  try {
+    const userData = await usersService.getById(user.value.UserID)
+    
+    // Map API response to our userInfo format
+    userInfo.value = {
+      firstName: userData.FirstName || '',
+      lastName: userData.LastName || '',
+      age: userData.Age || null,
+      campusCity: userData.CampusCity || '',
+      gender: userData.Gender || '',
+      bio: userData.Bio || '',
+      role: userData.Role || 'User'
+    }
+  } catch (error) {
+    console.error('Error fetching user data:', error)
+    // Keep empty values on error
+  } finally {
+    loading.value = false
+  }
+}
+
+// Watch for auth changes and fetch user data
+watch([isAuthenticated, user], () => {
+  fetchUserData()
+}, { immediate: true })
+
+// Check for pending role requests
+const checkPendingRequest = async () => {
+  if (!isAuthenticated.value || !user.value?.UserID) {
+    hasPendingRequest.value = false
+    return
+  }
+
+  try {
+    const requests = await roleRequestsService.getAll({
+      userId: user.value.UserID,
+      status: 'pending'
+    })
+    hasPendingRequest.value = requests.length > 0
+  } catch (error) {
+    console.error('Error checking pending requests:', error)
+  }
+}
+
+// Submit role request
+const submitRoleRequest = async () => {
+  roleRequestError.value = ''
+  roleRequestSuccess.value = ''
+  roleRequestLoading.value = true
+
+  try {
+    await roleRequestsService.create('venue_owner', roleRequestMessage.value)
+    roleRequestSuccess.value = 'Je aanvraag is succesvol verzonden!'
+    hasPendingRequest.value = true
+    
+    // Close modal after 2 seconds
+    setTimeout(() => {
+      showRoleRequestModal.value = false
+      roleRequestMessage.value = ''
+      roleRequestSuccess.value = ''
+    }, 2000)
+  } catch (error) {
+    roleRequestError.value = error.response?.data?.error || error.message || 'Er is een fout opgetreden'
+  } finally {
+    roleRequestLoading.value = false
+  }
+}
+
+// Fetch on mount
+onMounted(() => {
+  fetchUserData()
+  checkPendingRequest()
+})
+
+// Check for pending requests when auth changes
+watch([isAuthenticated, user], () => {
+  checkPendingRequest()
 })
 
 // Modals
 const showLogin = ref(false)
 const showRegister = ref(false)
 const showAddVenue = ref(false)
+const showRoleRequestModal = ref(false)
 const editingVenueIndex = ref(null)
+
+// Role Request
+const roleRequestMessage = ref('')
+const roleRequestLoading = ref(false)
+const roleRequestError = ref('')
+const roleRequestSuccess = ref('')
+const hasPendingRequest = ref(false)
 
 // Forms removed - now handled in Login.vue and Register.vue components
 
@@ -250,17 +434,22 @@ const userVenues = ref([
 ])
 
 const handleLogin = (loginData) => {
-  // Placeholder: Later koppelen aan API
-  console.log('Login:', loginData)
-  // TODO: API call
+  // User is already logged in via useAuth composable
+  // Fetch user data after login
+  fetchUserData()
   showLogin.value = false
 }
 
 const handleRegister = (registerData) => {
-  // Placeholder: Later koppelen aan API
-  console.log('Register:', registerData)
-  // TODO: API call
+  // After registration, user should login
+  // For now, just close the modal
   showRegister.value = false
+}
+
+const handleLogout = () => {
+  const { logout } = useAuth()
+  logout()
+  fetchUserData() // Reset user info
 }
 
 const editVenue = (index) => {
@@ -481,6 +670,46 @@ const closeVenueModal = () => {
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+.role-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-apply-role {
+  padding: 6px 12px;
+  background: rgba(155, 92, 255, 0.1);
+  border: 1px solid #9b5cff;
+  border-radius: 6px;
+  color: #9b5cff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-apply-role:hover:not(:disabled) {
+  background: rgba(155, 92, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-apply-role:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(155, 92, 255, 0.05);
+}
+
+.success-message {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
 .id-card-footer {
   padding: 24px 32px;
   background: rgba(15, 15, 15, 0.5);
@@ -509,6 +738,29 @@ const closeVenueModal = () => {
   background: #8a4de6;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(155, 92, 255, 0.3);
+}
+
+.logout-button {
+  width: 100%;
+}
+
+.btn-logout {
+  width: 100%;
+  padding: 12px 24px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  color: #ef4444;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-logout:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
 }
 
 /* VENUE REGISTRATION */

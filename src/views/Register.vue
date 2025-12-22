@@ -12,9 +12,12 @@
       </div>
       <div class="modal-body">
         <form @submit.prevent="handleRegister">
+          <div v-if="error" class="error-message">
+            {{ error }}
+          </div>
           <div class="form-group">
             <label>Voornaam</label>
-            <input type="text" v-model="registerForm.firstName" required />
+            <input type="text" v-model="registerForm.firstName" required :disabled="loading" />
           </div>
           <div class="form-group">
             <label>Achternaam</label>
@@ -49,7 +52,9 @@
             <label>Bio</label>
             <textarea v-model="registerForm.bio" rows="3"></textarea>
           </div>
-          <button type="submit" class="btn-submit">Registreren</button>
+          <button type="submit" class="btn-submit" :disabled="loading">
+            {{ loading ? 'Registreren...' : 'Registreren' }}
+          </button>
         </form>
       </div>
     </div>
@@ -58,6 +63,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useAuth } from '@/composables/useAuth.js'
 
 const props = defineProps({
   isOpen: {
@@ -68,6 +74,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'register'])
 
+const { register: registerUser } = useAuth()
 const registerForm = ref({
   firstName: '',
   lastName: '',
@@ -78,6 +85,8 @@ const registerForm = ref({
   gender: '',
   bio: ''
 })
+const error = ref('')
+const loading = ref(false)
 
 const close = () => {
   emit('close')
@@ -91,11 +100,27 @@ const close = () => {
     gender: '',
     bio: ''
   }
+  error.value = ''
 }
 
-const handleRegister = () => {
-  emit('register', registerForm.value)
-  close()
+const handleRegister = async () => {
+  error.value = ''
+  loading.value = true
+  
+  try {
+    const result = await registerUser(registerForm.value)
+    
+    if (result.success) {
+      emit('register', result.user)
+      close()
+    } else {
+      error.value = result.error
+    }
+  } catch (err) {
+    error.value = 'Er is een fout opgetreden bij het registreren'
+  } finally {
+    loading.value = false
+  }
 }
 
 // Reset form when modal closes
@@ -111,6 +136,7 @@ watch(() => props.isOpen, (newVal) => {
       gender: '',
       bio: ''
     }
+    error.value = ''
   }
 })
 </script>
@@ -255,6 +281,21 @@ watch(() => props.isOpen, (newVal) => {
 .modal {
   scrollbar-width: thin;
   scrollbar-color: rgba(155, 92, 255, 0.3) rgba(15, 15, 15, 0.5);
+}
+
+.error-message {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
 
