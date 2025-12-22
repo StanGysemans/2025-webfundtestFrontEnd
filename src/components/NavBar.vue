@@ -1,7 +1,9 @@
 <template>
   <nav class="sidebar">
     <div class="logo">
-      <span>MyApp</span>
+      <div class="logo-wrapper">
+        <img :src="logo" alt="UitgaansFinder logo" />
+      </div>
     </div>
 
     <ul class="nav-links">
@@ -23,6 +25,7 @@
 
 <script setup>
 import { RouterLink } from 'vue-router'
+import logo from '@/assets/UitgaansFinderLogo.png'
 </script>
 
 <style scoped>
@@ -33,14 +36,6 @@ import { RouterLink } from 'vue-router'
   color: white;
   display: flex;
   flex-direction: column;
-}
-
-.logo {
-  padding: 24px;
-  font-size: 20px;
-  font-weight: bold;
-  color: #9b5cff;
-  border-bottom: 1px solid #2a2a2a;
 }
 
 .nav-links {
@@ -66,4 +61,58 @@ import { RouterLink } from 'vue-router'
   color: #9b5cff;
   border-left: 4px solid #9b5cff;
 }
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.logo img {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+}
+
+.logo span {
+  font-size: 18px;
+  font-weight: bold;
+  color: #9b5cff;
+}
+.sidebar {
+  width: 240px;
+  background-color: #0b0b0b;
+  min-height: 100vh;
+}
+
+.logo {
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.logo-wrapper {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(155, 92, 255, 0.45),
+    rgba(11, 11, 11, 0.95) 70%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 22px rgba(155, 92, 255, 0.5);
+}
+
+.logo-wrapper img {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
 </style>
