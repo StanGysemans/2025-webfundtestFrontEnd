@@ -4,6 +4,9 @@ import Home from '@/views/Home.vue'
 import Dashboard from '@/views/Dashboard.vue'
 import Login from '@/views/Login.vue'
 import Profile from '@/views/Profile.vue'
+import Map from '@/views/Map.vue'
+import ClubList from '@/views/ClubList.vue'
+import Social from '@/views/Social.vue'
 
 
 const router = createRouter({
@@ -12,7 +15,10 @@ const router = createRouter({
     { path: '/', component: Home },
     { path: '/dashboard', component: Dashboard },
     { path: '/login', component: Login },
-    { path: '/profile', component: Profile}
+    { path: '/profile', component: Profile},
+    { path: '/map', component: Map},
+    { path: '/clublist', component: ClubList},
+    { path: '/social', component: Social}
   ]
 })
 

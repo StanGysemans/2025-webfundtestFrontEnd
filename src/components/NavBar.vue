@@ -11,10 +11,13 @@
         <RouterLink to="/" active-class="active">Home</RouterLink>
       </li>
       <li>
-        <RouterLink to="/dashboard" active-class="active">Dashboard</RouterLink>
+        <RouterLink to="/map" active-class="active">Map</RouterLink>
       </li>
       <li>
-        <RouterLink to="/login" active-class="active">Login</RouterLink>
+        <RouterLink to="/clublist" active-class="active">ClubList</RouterLink>
+      </li>
+      <li>
+        <RouterLink to="/social" active-class="active">Social</RouterLink>
       </li>
       <li>
         <RouterLink to="/profile" active-class="active">Profile</RouterLink>
