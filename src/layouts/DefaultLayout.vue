@@ -20,5 +20,6 @@ import NavBar from '@/components/NavBar.vue'
 .content {
   flex: 1;
   padding: 24px;
+  margin-left: 240px;
 }
 </style>

@@ -35,10 +35,15 @@ import logo from '@/assets/UitgaansFinderLogo.png'
 .sidebar {
   width: 240px;
   height: 100vh;
-  background-color: #0f0f0f;
+  background-color: #0b0b0b;
   color: white;
   display: flex;
   flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  overflow-y: auto;
 }
 
 .nav-links {
@@ -63,30 +68,6 @@ import logo from '@/assets/UitgaansFinderLogo.png'
   background-color: #1f1f1f;
   color: #9b5cff;
   border-left: 4px solid #9b5cff;
-}
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 24px;
-  border-bottom: 1px solid #2a2a2a;
-}
-
-.logo img {
-  width: 180px;
-  height: 180px;
-  object-fit: contain;
-}
-
-.logo span {
-  font-size: 18px;
-  font-weight: bold;
-  color: #9b5cff;
-}
-.sidebar {
-  width: 240px;
-  background-color: #0b0b0b;
-  min-height: 100vh;
 }
 
 .logo {
