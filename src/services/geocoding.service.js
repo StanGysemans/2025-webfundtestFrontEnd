@@ -12,8 +12,8 @@ export const geocodingService = {
         return null
       }
       
-      // Build address string in optimal format for Dutch addresses
-      // Format: "Street, PostalCode City, Netherlands"
+      // Build address string in optimal format for Belgian addresses
+      // Format: "Street, PostalCode City, België"
       let fullAddress = cleanAddress
       
       // Add postal code and city together (Dutch format: "1234AB Amsterdam")
@@ -26,12 +26,12 @@ export const geocodingService = {
       }
       
       // Add country
-      fullAddress += ', Nederland'
+      fullAddress += ', België'
       
       console.log('Geocoding address:', fullAddress)
       
-      // Use Nominatim API with better parameters for Dutch addresses
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1&countrycodes=nl&addressdetails=1&accept-language=nl`
+      // Use Nominatim API with better parameters for Belgian addresses
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1&countrycodes=be&addressdetails=1&accept-language=nl`
       
       const response = await fetch(url, {
         headers: {
@@ -52,11 +52,11 @@ export const geocodingService = {
         const lat = parseFloat(data[0].lat)
         const lng = parseFloat(data[0].lon)
         
-        // Validate coordinates (Netherlands bounds approximately)
-        if (lat >= 50.5 && lat <= 53.7 && lng >= 3.2 && lng <= 7.2) {
+        // Validate coordinates (Belgium bounds approximately)
+        if (lat >= 49.5 && lat <= 51.5 && lng >= 2.5 && lng <= 6.4) {
           return { lat, lng }
         } else {
-          console.warn('Coordinates outside Netherlands bounds:', { lat, lng })
+          console.warn('Coordinates outside Belgium bounds:', { lat, lng })
           // Still return them, but log warning
           return { lat, lng }
         }
@@ -64,10 +64,10 @@ export const geocodingService = {
       
       // Try alternative format if first attempt failed
       if (cleanPostalCode && cleanCity) {
-        const altAddress = `${cleanPostalCode} ${cleanCity}, Nederland`
+        const altAddress = `${cleanPostalCode} ${cleanCity}, België`
         console.log('Trying alternative format:', altAddress)
         
-        const altUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(altAddress)}&limit=1&countrycodes=nl&addressdetails=1`
+        const altUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(altAddress)}&limit=1&countrycodes=be&addressdetails=1`
         
         const altResponse = await fetch(altUrl, {
           headers: {

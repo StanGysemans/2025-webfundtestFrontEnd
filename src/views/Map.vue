@@ -8,8 +8,9 @@
           class="search-input" 
           placeholder="Zoek naar venues, locaties..." 
           v-model="searchQuery"
+          @keyup.enter="applyFilters"
         />
-        <button class="search-button">
+        <button class="search-button" @click="applyFilters">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"></circle>
             <path d="m21 21-4.35-4.35"></path>
@@ -20,10 +21,9 @@
 
     <!-- MAP -->
     <section class="map-section">
-      <div class="map-container">
-        <div class="map-placeholder">
-          <p>Kaart wordt hier weergegeven</p>
-          <p class="map-subtitle">Venues worden hier getoond op basis van filters</p>
+      <div class="map-container" ref="mapContainer">
+        <div v-if="loading" class="map-loading">
+          <p>Kaart laden...</p>
         </div>
       </div>
     </section>
@@ -164,12 +164,171 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { venuesService } from '@/services/venues.service.js'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+// Fix for default marker icons in Leaflet with Vite
+import icon from 'leaflet/dist/images/marker-icon.png'
+import iconShadow from 'leaflet/dist/images/marker-shadow.png'
+
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+})
+L.Marker.prototype.options.icon = DefaultIcon
 
 const searchQuery = ref('')
 const venues = ref([])
+const filteredVenues = ref([])
 const loading = ref(false)
+const mapContainer = ref(null)
+let map = null
+let markers = []
+
+// Helper function to check if venue is currently open
+const isCurrentlyOpen = (openingHours) => {
+  if (!openingHours) return false
+  
+  // Parse if string
+  if (typeof openingHours === 'string') {
+    try {
+      openingHours = JSON.parse(openingHours)
+    } catch (e) {
+      return false
+    }
+  }
+  
+  if (typeof openingHours !== 'object' || Array.isArray(openingHours)) {
+    return false
+  }
+  
+  // Get current day and time
+  const now = new Date()
+  const currentDay = now.getDay() // 0 = Sunday, 1 = Monday, etc.
+  
+  // Map JavaScript day to Dutch day name
+  const dayMap = {
+    0: 'zondag',
+    1: 'maandag',
+    2: 'dinsdag',
+    3: 'woensdag',
+    4: 'donderdag',
+    5: 'vrijdag',
+    6: 'zaterdag'
+  }
+  
+  const currentDayName = dayMap[currentDay]
+  const todayHours = openingHours[currentDayName]
+  
+  if (!todayHours) return false
+  
+  // Parse time range (format: "09:00-21:00")
+  const timeMatch = todayHours.match(/(\d{2}):(\d{2})-(\d{2}):(\d{2})/)
+  if (!timeMatch) return false
+  
+  const openHour = parseInt(timeMatch[1])
+  const openMinute = parseInt(timeMatch[2])
+  const closeHour = parseInt(timeMatch[3])
+  const closeMinute = parseInt(timeMatch[4])
+  
+  const currentHour = now.getHours()
+  const currentMinute = now.getMinutes()
+  const currentTime = currentHour * 60 + currentMinute
+  const openTime = openHour * 60 + openMinute
+  const closeTime = closeHour * 60 + closeMinute
+  
+  return currentTime >= openTime && currentTime < closeTime
+}
+
+// Initialize map
+const initMap = () => {
+  if (!mapContainer.value) return
+  
+  // Create map centered on Belgium (Brussels)
+  map = L.map(mapContainer.value).setView([50.5039, 4.4699], 8)
+  
+  // Add OpenStreetMap tiles
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map)
+}
+
+// Clear all markers
+const clearMarkers = () => {
+  markers.forEach(marker => {
+    map.removeLayer(marker)
+  })
+  markers = []
+}
+
+// Add markers to map
+const addMarkersToMap = () => {
+  clearMarkers()
+  
+  if (!map) return
+  
+  const venuesWithCoords = filteredVenues.value.filter(v => v.lat && v.lng)
+  
+  if (venuesWithCoords.length === 0) {
+    return
+  }
+  
+  // Create bounds for all venues
+  const bounds = []
+  
+  venuesWithCoords.forEach(venue => {
+    // Leaflet expects [latitude, longitude]
+    // Check if coordinates might be swapped (common issue)
+    // Belgium lat range: ~49.5 to 51.5, lng range: ~2.5 to 6.4
+    let lat = venue.lat
+    let lng = venue.lng
+    
+    // If lat is in lng range or vice versa, swap them
+    if (lat >= 2.5 && lat <= 6.4 && lng >= 49.5 && lng <= 51.5) {
+      // Coordinates are swapped
+      console.warn(`Swapping coordinates for venue ${venue.name}:`, { originalLat: lat, originalLng: lng })
+      const temp = lat
+      lat = lng
+      lng = temp
+    }
+    
+    const marker = L.marker([lat, lng])
+    
+    // Create popup content
+    const statusIcon = venue.currentlyOpen ? '🟢' : '🔴'
+    const statusText = venue.currentlyOpen ? 'Open' : 'Gesloten'
+    
+    const popupContent = `
+      <div class="map-popup">
+        <h3 style="margin: 0 0 8px 0; color: #9b5cff; font-size: 18px;">${venue.name}</h3>
+        <p style="margin: 4px 0; color: #999; font-size: 12px;">${venue.type}</p>
+        <p style="margin: 4px 0; color: #eaeaea; font-size: 14px;">${venue.address || ''}${venue.address && venue.city ? ', ' : ''}${venue.city || ''}</p>
+        <p style="margin: 8px 0 4px 0; color: #eaeaea; font-size: 13px;">
+          <span style="margin-right: 8px;">${statusIcon} ${statusText}</span>
+          <span>👥 ${venue.crowdLevel || 'Onbekend'}</span>
+        </p>
+        ${venue.description ? `<p style="margin: 8px 0 0 0; color: #cfcfcf; font-size: 12px;">${venue.description}</p>` : ''}
+      </div>
+    `
+    
+    marker.bindPopup(popupContent)
+    marker.addTo(map)
+    markers.push(marker)
+    bounds.push([lat, lng])
+  })
+  
+  // Fit map to show all markers
+  if (bounds.length > 0) {
+    map.fitBounds(bounds, { padding: [50, 50] })
+  }
+}
 
 // Fetch venues from API
 const fetchVenues = async () => {
@@ -181,20 +340,29 @@ const fetchVenues = async () => {
     venues.value = apiVenues.map(venue => {
       const latestStatus = venue.venuestatus?.[0]
       const address = venue.venueaddress?.[0]
+      const openingHours = venue.OpeningHours
       
       return {
         id: venue.VenueID,
+        VenueID: venue.VenueID,
         name: venue.Name,
         type: venue.venuetype?.VenueType || 'Onbekend',
         description: venue.Description || '',
         location: address?.City || 'Onbekend',
         address: address?.Address || '',
+        city: address?.City || '',
+        postalCode: address?.PostalCode || '',
         lat: address?.Lat ? parseFloat(address.Lat) : null,
         lng: address?.Lng ? parseFloat(address.Lng) : null,
-        isOpen: latestStatus?.IsOpen ?? null,
+        openingHours: openingHours,
+        currentlyOpen: isCurrentlyOpen(openingHours),
+        isOpen: latestStatus?.IsOpen ?? null, // Keep for backward compatibility
         crowdLevel: latestStatus?.CrowdLevel || 'Onbekend'
       }
     })
+    
+    // Apply initial filters
+    applyFilters()
   } catch (error) {
     console.error('Error fetching venues:', error)
     venues.value = []
@@ -210,8 +378,21 @@ const filters = ref({
 })
 
 // Load venues on mount
-onMounted(() => {
-  fetchVenues()
+onMounted(async () => {
+  // Initialize map
+  await nextTick()
+  initMap()
+  
+  // Fetch venues
+  await fetchVenues()
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (map) {
+    map.remove()
+    map = null
+  }
 })
 
 const resetFilters = () => {
@@ -221,47 +402,37 @@ const resetFilters = () => {
     crowdLevels: []
   }
   searchQuery.value = ''
+  applyFilters()
 }
 
 const applyFilters = async () => {
   loading.value = true
   try {
-    const apiFilters = {}
+    let filtered = [...venues.value]
     
+    // Apply search filter
     if (searchQuery.value.trim()) {
-      apiFilters.search = searchQuery.value.trim()
+      const query = searchQuery.value.toLowerCase().trim()
+      filtered = filtered.filter(venue => 
+        venue.name.toLowerCase().includes(query) ||
+        venue.description.toLowerCase().includes(query) ||
+        venue.location.toLowerCase().includes(query) ||
+        venue.type.toLowerCase().includes(query) ||
+        (venue.address && venue.address.toLowerCase().includes(query)) ||
+        (venue.city && venue.city.toLowerCase().includes(query))
+      )
     }
     
-    const apiVenues = await venuesService.getAll(apiFilters)
-    
-    // Transform and apply client-side filters
-    let transformedVenues = apiVenues.map(venue => {
-      const latestStatus = venue.venuestatus?.[0]
-      const address = venue.venueaddress?.[0]
-      
-      return {
-        id: venue.VenueID,
-        name: venue.Name,
-        type: venue.venuetype?.VenueType || 'Onbekend',
-        description: venue.Description || '',
-        location: address?.City || 'Onbekend',
-        address: address?.Address || '',
-        lat: address?.Lat ? parseFloat(address.Lat) : null,
-        lng: address?.Lng ? parseFloat(address.Lng) : null,
-        isOpen: latestStatus?.IsOpen ?? null,
-        crowdLevel: latestStatus?.CrowdLevel || 'Onbekend'
-      }
-    })
-    
-    // Apply client-side filters
+    // Apply open/closed filter (use currentlyOpen for dynamic status)
     if (filters.value.openStatus === 'open') {
-      transformedVenues = transformedVenues.filter(v => v.isOpen === true)
+      filtered = filtered.filter(v => v.currentlyOpen === true)
     } else if (filters.value.openStatus === 'closed') {
-      transformedVenues = transformedVenues.filter(v => v.isOpen === false)
+      filtered = filtered.filter(v => v.currentlyOpen === false)
     }
     
+    // Apply venue type filter
     if (filters.value.venueTypes.length > 0) {
-      transformedVenues = transformedVenues.filter(v => {
+      filtered = filtered.filter(v => {
         const venueTypeLower = v.type.toLowerCase()
         return filters.value.venueTypes.some(filterType => 
           venueTypeLower.includes(filterType.toLowerCase())
@@ -269,6 +440,7 @@ const applyFilters = async () => {
       })
     }
     
+    // Apply crowd level filter
     if (filters.value.crowdLevels.length > 0) {
       const crowdMap = {
         'low': 'Rustig',
@@ -277,18 +449,28 @@ const applyFilters = async () => {
         'very-high': 'Zeer Druk'
       }
       const crowdLevels = filters.value.crowdLevels.map(level => crowdMap[level])
-      transformedVenues = transformedVenues.filter(v => 
+      filtered = filtered.filter(v => 
         crowdLevels.includes(v.crowdLevel)
       )
     }
     
-    venues.value = transformedVenues
+    filteredVenues.value = filtered
+    
+    // Update markers on map
+    nextTick(() => {
+      addMarkersToMap()
+    })
   } catch (error) {
     console.error('Error applying filters:', error)
   } finally {
     loading.value = false
   }
 }
+
+// Watch for filter changes to auto-apply
+watch(() => filters.value, () => {
+  applyFilters()
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -371,25 +553,45 @@ const applyFilters = async () => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-.map-placeholder {
-  width: 100%;
-  height: 100%;
-  background: rgba(18, 18, 18, 0.85);
-  border: 1px solid #1f1f1f;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+.map-container {
+  position: relative;
+}
+
+.map-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  background: rgba(18, 18, 18, 0.9);
+  padding: 20px 40px;
+  border-radius: 12px;
   color: #9b5cff;
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 600;
 }
 
-.map-subtitle {
-  margin-top: 12px;
-  font-size: 16px;
-  color: #999;
-  font-weight: normal;
+/* Leaflet dark theme adjustments */
+:deep(.leaflet-container) {
+  background: #0f0f0f;
+}
+
+:deep(.leaflet-popup-content-wrapper) {
+  background: rgba(18, 18, 18, 0.95);
+  color: #eaeaea;
+  border-radius: 8px;
+}
+
+:deep(.leaflet-popup-tip) {
+  background: rgba(18, 18, 18, 0.95);
+}
+
+:deep(.leaflet-popup-close-button) {
+  color: #9b5cff;
+}
+
+:deep(.leaflet-popup-close-button:hover) {
+  color: #8a4de6;
 }
 
 /* Filters Section */
