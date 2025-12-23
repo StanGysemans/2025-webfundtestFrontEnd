@@ -9,7 +9,7 @@
           placeholder="Zoek naar vrienden..." 
           v-model="searchQuery"
         />
-        <button class="search-button">
+        <button class="search-button" @click="searchUsers">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"></circle>
             <path d="m21 21-4.35-4.35"></path>
@@ -23,11 +23,14 @@
       <h2>Voorgestelde Vrienden</h2>
       <div class="friends-list horizontal">
         <div 
-          v-for="suggested in suggestedFriends" 
+          v-for="suggested in filteredSuggestedFriends" 
           :key="suggested.id" 
           class="friend-card"
         >
-          <div class="friend-avatar">
+          <div 
+            class="friend-avatar"
+            :style="{ background: `linear-gradient(135deg, ${suggested.avatarColor || '#9b5cff'} 0%, ${suggested.avatarColorDark || '#6d28d9'} 100%)` }"
+          >
             <span>{{ suggested.initials }}</span>
           </div>
           <p class="friend-name">{{ suggested.name }}</p>
@@ -38,6 +41,41 @@
             </svg>
             Toevoegen
           </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PENDING FRIEND REQUESTS -->
+    <section v-if="pendingRequests && pendingRequests.length > 0" class="friends-section">
+      <h2>Vriend Verzoeken ({{ pendingRequests.length }})</h2>
+      <div class="friends-list horizontal">
+        <div 
+          v-for="request in pendingRequests" 
+          :key="request.FriendID" 
+          class="friend-card"
+        >
+          <div 
+            class="friend-avatar"
+            :style="{ background: `linear-gradient(135deg, ${request.avatarColor || '#9b5cff'} 0%, ${request.avatarColorDark || '#6d28d9'} 100%)` }"
+          >
+            <span>{{ request.initials }}</span>
+          </div>
+          <p class="friend-name">{{ request.name }}</p>
+          <div class="request-actions">
+            <button class="btn-accept" @click="acceptFriendRequest(request.FriendID)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              Accepteren
+            </button>
+            <button class="btn-reject" @click="rejectFriendRequest(request.FriendID)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              Afwijzen
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -53,7 +91,10 @@
           @mouseenter="hoveredFriend = friend.id"
           @mouseleave="hoveredFriend = null"
         >
-          <div class="friend-avatar">
+          <div 
+            class="friend-avatar"
+            :style="{ background: `linear-gradient(135deg, ${friend.avatarColor || '#9b5cff'} 0%, ${friend.avatarColorDark || '#6d28d9'} 100%)` }"
+          >
             <span>{{ friend.initials }}</span>
           </div>
           <p class="friend-name">{{ friend.name }}</p>
@@ -162,137 +203,28 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuth } from '@/composables/useAuth.js'
+import { friendsService } from '@/services/friends.service.js'
+import { usersService } from '@/services/users.service.js'
 
 const router = useRouter()
+const { isAuthenticated, user } = useAuth()
 const searchQuery = ref('')
 const hoveredFriend = ref(null)
 const showFriendIdCard = ref(false)
 const selectedFriend = ref(null)
+const loading = ref(false)
 
-// Placeholder suggested friends data
-const suggestedFriends = ref([
-  {
-    id: 1,
-    name: 'Jan Jansen',
-    initials: 'JJ'
-  },
-  {
-    id: 2,
-    name: 'Maria de Vries',
-    initials: 'MV'
-  },
-  {
-    id: 3,
-    name: 'Pieter Bakker',
-    initials: 'PB'
-  },
-  {
-    id: 4,
-    name: 'Lisa van der Berg',
-    initials: 'LB'
-  },
-  {
-    id: 5,
-    name: 'Tom Smit',
-    initials: 'TS'
-  }
-])
+// Suggested friends (users who are not yet friends)
+const suggestedFriends = ref([])
 
-// Placeholder friends data
-const friends = ref([
-  {
-    id: 10,
-    name: 'Emma van Dijk',
-    firstName: 'Emma',
-    lastName: 'van Dijk',
-    initials: 'ED',
-    isOnline: true,
-    age: 23,
-    campusCity: 'Amsterdam',
-    gender: 'Vrouw',
-    bio: 'Liefhebber van muziek en dansen',
-    role: 'User',
-    avatarColor: '#3b82f6',
-    avatarColorDark: '#1e40af'
-  },
-  {
-    id: 11,
-    name: 'Lucas Mulder',
-    firstName: 'Lucas',
-    lastName: 'Mulder',
-    initials: 'LM',
-    isOnline: true,
-    age: 25,
-    campusCity: 'Utrecht',
-    gender: 'Man',
-    bio: 'Altijd op zoek naar nieuwe plekken',
-    role: 'User',
-    avatarColor: '#10b981',
-    avatarColorDark: '#059669'
-  },
-  {
-    id: 12,
-    name: 'Sophie de Boer',
-    firstName: 'Sophie',
-    lastName: 'de Boer',
-    initials: 'SB',
-    isOnline: false,
-    age: 22,
-    campusCity: 'Rotterdam',
-    gender: 'Vrouw',
-    bio: 'Fotograaf en uitgaansliefhebber',
-    role: 'User',
-    avatarColor: '#ec4899',
-    avatarColorDark: '#be185d'
-  },
-  {
-    id: 13,
-    name: 'Noah Visser',
-    firstName: 'Noah',
-    lastName: 'Visser',
-    initials: 'NV',
-    isOnline: true,
-    age: 24,
-    campusCity: 'Amsterdam',
-    gender: 'Man',
-    bio: 'DJ en muziek producer',
-    role: 'VenueOwner',
-    avatarColor: '#9b5cff',
-    avatarColorDark: '#6d28d9'
-  },
-  {
-    id: 14,
-    name: 'Eva Meijer',
-    firstName: 'Eva',
-    lastName: 'Meijer',
-    initials: 'EM',
-    isOnline: false,
-    age: 21,
-    campusCity: 'Den Haag',
-    gender: 'Vrouw',
-    bio: 'Student en feestganger',
-    role: 'User',
-    avatarColor: '#f59e0b',
-    avatarColorDark: '#d97706'
-  },
-  {
-    id: 15,
-    name: 'Daan de Wit',
-    firstName: 'Daan',
-    lastName: 'de Wit',
-    initials: 'DW',
-    isOnline: true,
-    age: 26,
-    campusCity: 'Amsterdam',
-    gender: 'Man',
-    bio: 'Bar eigenaar en cocktail expert',
-    role: 'VenueOwner',
-    avatarColor: '#ef4444',
-    avatarColorDark: '#dc2626'
-  }
-])
+// Friends data from API
+const friends = ref([])
+
+// Pending friend requests
+const pendingRequests = ref([])
 
 const filteredFriends = computed(() => {
   if (!searchQuery.value.trim()) {
@@ -301,22 +233,236 @@ const filteredFriends = computed(() => {
   
   const query = searchQuery.value.toLowerCase()
   return friends.value.filter(friend => 
-    friend.name.toLowerCase().includes(query)
+    friend.name.toLowerCase().includes(query) ||
+    friend.firstName?.toLowerCase().includes(query) ||
+    friend.lastName?.toLowerCase().includes(query)
   )
 })
 
-const addFriend = (friendId) => {
-  // Placeholder: Later koppelen aan API
-  console.log('Vriend toevoegen:', friendId)
-  // TODO: API call om vriend toe te voegen
+const filteredSuggestedFriends = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return suggestedFriends.value
+  }
+  
+  const query = searchQuery.value.toLowerCase()
+  return suggestedFriends.value.filter(suggested => 
+    suggested.name.toLowerCase().includes(query) ||
+    suggested.firstName?.toLowerCase().includes(query) ||
+    suggested.lastName?.toLowerCase().includes(query)
+  )
+})
+
+// Fetch friends from API
+const fetchFriends = async () => {
+  if (!isAuthenticated.value) {
+    friends.value = []
+    suggestedFriends.value = []
+    pendingRequests.value = []
+    return
+  }
+
+  loading.value = true
+  try {
+    const friendsData = await friendsService.getAll()
+    
+    // Transform API response to our format
+    friends.value = friendsData
+      .filter(friend => friend.Status === 'accepted')
+      .map(friend => {
+        // Determine which user is the friend (not the current user)
+        const friendUser = friend.user_friend_UserID1Touser.UserID === user.value.UserID
+          ? friend.user_friend_UserID2Touser
+          : friend.user_friend_UserID1Touser
+        
+        return {
+          id: friendUser.UserID,
+          UserID: friendUser.UserID,
+          FriendID: friend.FriendID, // Store FriendID for deletion
+          name: `${friendUser.FirstName || ''} ${friendUser.LastName || ''}`.trim(),
+          firstName: friendUser.FirstName || '',
+          lastName: friendUser.LastName || '',
+          initials: `${(friendUser.FirstName || '')[0] || ''}${(friendUser.LastName || '')[0] || ''}`.toUpperCase(),
+          isOnline: false, // TODO: Implement online status
+          age: null, // Will be fetched when viewing ID card
+          campusCity: '',
+          gender: '',
+          bio: '',
+          role: '',
+          avatarColor: friendUser.AvatarColor || '#9b5cff',
+          avatarColorDark: friendUser.AvatarColorDark || '#6d28d9'
+        }
+      })
+    
+    // Fetch pending requests
+    await fetchPendingRequests()
+    
+    // Fetch suggested friends (get all users, exclude current user and existing friends)
+    await fetchSuggestedFriends()
+  } catch (error) {
+    console.error('Error fetching friends:', error)
+    friends.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
-const removeFriend = (friendId) => {
-  // Placeholder: Later koppelen aan API
-  if (confirm('Weet je zeker dat je deze vriend wilt verwijderen?')) {
-    console.log('Vriend verwijderen:', friendId)
-    // TODO: API call om vriend te verwijderen
-    friends.value = friends.value.filter(f => f.id !== friendId)
+// Fetch pending friend requests
+const fetchPendingRequests = async () => {
+  if (!isAuthenticated.value) {
+    pendingRequests.value = []
+    return
+  }
+
+  try {
+    const requests = await friendsService.getPendingRequests()
+    
+    // Transform to show only requests where current user is the recipient (not the sender)
+    pendingRequests.value = requests
+      .filter(request => {
+        // Only show requests where current user is UserID2 (recipient)
+        return request.UserID2 === user.value.UserID && request.Status === 'pending'
+      })
+      .map(request => {
+        const requester = request.user_friend_UserID1Touser
+        return {
+          FriendID: request.FriendID,
+          id: requester.UserID,
+          UserID: requester.UserID,
+          name: `${requester.FirstName || ''} ${requester.LastName || ''}`.trim(),
+          firstName: requester.FirstName || '',
+          lastName: requester.LastName || '',
+          initials: `${(requester.FirstName || '')[0] || ''}${(requester.LastName || '')[0] || ''}`.toUpperCase(),
+          avatarColor: requester.AvatarColor || '#9b5cff',
+          avatarColorDark: requester.AvatarColorDark || '#6d28d9'
+        }
+      })
+  } catch (error) {
+    console.error('Error fetching pending requests:', error)
+    pendingRequests.value = []
+  }
+}
+
+// Fetch suggested friends
+const fetchSuggestedFriends = async () => {
+  if (!isAuthenticated.value) {
+    suggestedFriends.value = []
+    return
+  }
+
+  try {
+    // Get all pending requests (both sent and received) to exclude
+    const allPendingRequests = await friendsService.getPendingRequests()
+    const friendIds = new Set([
+      user.value.UserID,
+      ...friends.value.map(f => f.id),
+      ...pendingRequests.value.map(r => r.id),
+      ...allPendingRequests.map(r => {
+        const otherUser = r.user_friend_UserID1Touser.UserID === user.value.UserID
+          ? r.user_friend_UserID2Touser.UserID
+          : r.user_friend_UserID1Touser.UserID
+        return otherUser
+      })
+    ])
+    
+    // Fetch all users from database
+    const allUsers = await usersService.getAll()
+    
+    // Filter out current user, existing friends, and pending requests
+    // Then randomly select up to 10 users
+    const availableUsers = allUsers
+      .filter(u => !friendIds.has(u.UserID))
+      .map(u => ({
+        id: u.UserID,
+        UserID: u.UserID,
+        name: `${u.FirstName || ''} ${u.LastName || ''}`.trim() || 'Onbekend',
+        firstName: u.FirstName || '',
+        lastName: u.LastName || '',
+        initials: `${(u.FirstName || '')[0] || ''}${(u.LastName || '')[0] || ''}`.toUpperCase() || '??'
+      }))
+    
+    // Randomly shuffle and take up to 10
+    const shuffled = availableUsers.sort(() => 0.5 - Math.random())
+    suggestedFriends.value = shuffled.slice(0, 10)
+  } catch (error) {
+    console.error('Error fetching suggested friends:', error)
+    suggestedFriends.value = []
+  }
+}
+
+const addFriend = async (friendId) => {
+  try {
+    await friendsService.createRequest(friendId)
+    
+    // Remove user from suggested friends list immediately
+    suggestedFriends.value = suggestedFriends.value.filter(user => user.id !== friendId)
+    
+    await fetchFriends() // Refresh list (includes pending requests)
+    // Note: We don't need to refetch suggested friends since we already removed the user
+  } catch (error) {
+    console.error('Error adding friend:', error)
+    const errorMsg = error.response?.data?.error || error.message || 'Er is een fout opgetreden bij het toevoegen van de vriend'
+    alert(errorMsg)
+  }
+}
+
+const acceptFriendRequest = async (friendId) => {
+  try {
+    // Find the request by FriendID
+    const request = pendingRequests.value.find(r => r.FriendID === friendId)
+    if (request) {
+      await friendsService.acceptRequest(request.FriendID)
+      await fetchFriends() // Refresh list
+    }
+  } catch (error) {
+    console.error('Error accepting friend request:', error)
+    alert('Er is een fout opgetreden bij het accepteren van het verzoek')
+  }
+}
+
+const rejectFriendRequest = async (friendId) => {
+  try {
+    // Find the request by FriendID
+    const request = pendingRequests.value.find(r => r.FriendID === friendId)
+    if (request) {
+      await friendsService.delete(request.FriendID)
+      await fetchPendingRequests() // Refresh pending requests
+    }
+  } catch (error) {
+    console.error('Error rejecting friend request:', error)
+    alert('Er is een fout opgetreden bij het afwijzen van het verzoek')
+  }
+}
+
+const removeFriend = async (friendId) => {
+  if (!confirm('Weet je zeker dat je deze vriend wilt verwijderen?')) {
+    return
+  }
+
+  try {
+    // Find the friend relationship ID
+    const friendRelation = friends.value.find(f => f.id === friendId)
+    if (friendRelation?.FriendID) {
+      await friendsService.delete(friendRelation.FriendID)
+      await fetchFriends() // Refresh list
+    } else {
+      // If we don't have FriendID, we need to find it from the API
+      const allFriends = await friendsService.getAll()
+      const relation = allFriends.find(f => {
+        const otherUser = f.user_friend_UserID1Touser.UserID === user.value.UserID
+          ? f.user_friend_UserID2Touser.UserID
+          : f.user_friend_UserID1Touser.UserID
+        return otherUser === friendId
+      })
+      if (relation) {
+        await friendsService.delete(relation.FriendID)
+        await fetchFriends() // Refresh list
+      } else {
+        alert('Vriend relatie niet gevonden')
+      }
+    }
+  } catch (error) {
+    console.error('Error removing friend:', error)
+    alert('Er is een fout opgetreden bij het verwijderen van de vriend')
   }
 }
 
@@ -325,13 +471,106 @@ const openChat = (friendId) => {
   router.push({ path: '/chat', query: { friendId } })
 }
 
-const viewFriendId = (friendId) => {
+const viewFriendId = async (friendId) => {
   const friend = friends.value.find(f => f.id === friendId)
   if (friend) {
-    selectedFriend.value = friend
-    showFriendIdCard.value = true
+    try {
+      // Fetch full user data for ID card
+      const userData = await usersService.getById(friendId)
+      const contact = userData.usercontact?.[0]
+      
+      selectedFriend.value = {
+        ...friend,
+        firstName: userData.FirstName || '',
+        lastName: userData.LastName || '',
+        age: userData.Age || null,
+        campusCity: userData.CampusCity || '',
+        gender: userData.Gender || '',
+        bio: userData.Bio || '',
+        role: userData.Role || 'User',
+        Email: contact?.Email || '',
+        avatarColor: userData.AvatarColor || '#9b5cff',
+        avatarColorDark: userData.AvatarColorDark || '#6d28d9'
+      }
+      showFriendIdCard.value = true
+    } catch (error) {
+      console.error('Error fetching friend data:', error)
+      // Fallback to basic friend data
+      selectedFriend.value = friend
+      showFriendIdCard.value = true
+    }
   }
 }
+
+// Load friends on mount
+onMounted(() => {
+  if (isAuthenticated.value) {
+    fetchFriends()
+  }
+})
+
+// Search users in database
+const searchUsers = async () => {
+  if (!searchQuery.value.trim()) {
+    // If search is empty, show suggested friends
+    await fetchSuggestedFriends()
+    return
+  }
+
+  loading.value = true
+  try {
+    const searchResults = await usersService.getAll({ search: searchQuery.value })
+    
+    // Filter out current user, existing friends, and pending requests
+    const pendingRequests = await friendsService.getPendingRequests()
+    const friendIds = new Set([
+      user.value.UserID,
+      ...friends.value.map(f => f.id),
+      ...pendingRequests.map(r => {
+        const otherUser = r.user_friend_UserID1Touser.UserID === user.value.UserID
+          ? r.user_friend_UserID2Touser.UserID
+          : r.user_friend_UserID1Touser.UserID
+        return otherUser
+      })
+    ])
+    
+    suggestedFriends.value = searchResults
+      .filter(u => !friendIds.has(u.UserID))
+      .map(u => ({
+        id: u.UserID,
+        UserID: u.UserID,
+        name: `${u.FirstName || ''} ${u.LastName || ''}`.trim() || 'Onbekend',
+        firstName: u.FirstName || '',
+        lastName: u.LastName || '',
+        initials: `${(u.FirstName || '')[0] || ''}${(u.LastName || '')[0] || ''}`.toUpperCase() || '??'
+      }))
+  } catch (error) {
+    console.error('Error searching users:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Watch for auth changes
+watch(() => isAuthenticated.value, (newVal) => {
+  if (newVal) {
+    fetchFriends() // This also fetches pending requests
+    fetchSuggestedFriends()
+  } else {
+    friends.value = []
+    suggestedFriends.value = []
+    pendingRequests.value = []
+  }
+})
+
+// Watch search query and search when it changes
+watch(searchQuery, () => {
+  if (searchQuery.value.trim()) {
+    searchUsers()
+  } else {
+    fetchSuggestedFriends()
+  }
+})
 </script>
 
 <style scoped>
@@ -601,6 +840,53 @@ const viewFriendId = (friendId) => {
 .btn-remove:hover {
   background: rgba(239, 68, 68, 0.3);
   border-color: rgba(239, 68, 68, 0.5);
+}
+
+.request-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.btn-accept,
+.btn-reject {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.3s ease;
+}
+
+.btn-accept {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.btn-accept:hover {
+  background: rgba(34, 197, 94, 0.3);
+  border-color: rgba(34, 197, 94, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-reject {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-reject:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
 }
 
 /* Empty State */

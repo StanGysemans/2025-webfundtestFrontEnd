@@ -8,6 +8,7 @@ import Map from '@/views/Map.vue'
 import ClubList from '@/views/ClubList.vue'
 import Social from '@/views/Social.vue'
 import Chat from '@/views/Chat.vue'
+import AdminRoleRequests from '@/views/AdminRoleRequests.vue'
 
 
 const router = createRouter({
@@ -20,7 +21,8 @@ const router = createRouter({
     { path: '/map', component: Map},
     { path: '/clublist', component: ClubList},
     { path: '/social', component: Social},
-    { path: '/chat', component: Chat}
+    { path: '/chat', component: Chat},
+    { path: '/admin/role-requests', component: AdminRoleRequests}
   ]
 })
 

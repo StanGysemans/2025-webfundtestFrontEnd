@@ -161,10 +161,12 @@
         </div>
 
         <div class="venues-container">
-          <!-- Placeholder venues - Later vervangen door API data -->
+          <div v-if="loading" class="loading-state">
+            <p>Venues laden...</p>
+          </div>
           <div 
             v-for="venue in filteredVenues" 
-            :key="venue.id" 
+            :key="venue.id || venue.VenueID" 
             class="venue-card"
           >
             <div class="venue-content">
@@ -176,8 +178,9 @@
               <div class="venue-info">
                 <div class="venue-header">
                   <h3>{{ venue.name }}</h3>
-                  <span class="venue-status" :class="venue.isOpen ? 'open' : 'closed'">
-                    {{ venue.isOpen ? 'Open' : 'Gesloten' }}
+                  <span class="venue-status" :class="venue.currentlyOpen ? 'open' : 'closed'">
+                    <span class="status-icon">{{ venue.currentlyOpen ? '🟢' : '🔴' }}</span>
+                    {{ venue.currentlyOpen ? 'Open' : 'Gesloten' }}
                   </span>
                 </div>
                 
@@ -185,19 +188,22 @@
                 <p class="venue-description">{{ venue.description }}</p>
                 
                 <div class="venue-details">
-                  <div class="venue-detail">
+                  <div class="venue-detail venue-address">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                       <circle cx="12" cy="10" r="3"></circle>
                     </svg>
-                    <span>{{ venue.location }}</span>
+                    <div class="address-text">
+                      <span class="address-street">{{ venue.fullAddress }}</span>
+                      <span class="address-city">{{ venue.city }}</span>
+                    </div>
                   </div>
-                  <div class="venue-detail">
+                  <div class="venue-detail venue-hours">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <circle cx="12" cy="12" r="10"></circle>
                       <polyline points="12 6 12 12 16 14"></polyline>
                     </svg>
-                    <span>{{ venue.openingHours }}</span>
+                    <div class="opening-hours-text" v-html="venue.formattedHours"></div>
                   </div>
                   <div class="venue-detail">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -225,7 +231,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { venuesService } from '@/services/venues.service.js'
 
 const searchQuery = ref('')
 
@@ -235,75 +242,211 @@ const filters = ref({
   crowdLevels: []
 })
 
-// Placeholder venues data - Later vervangen door API call
-const venues = ref([
-  {
-    id: 1,
-    name: 'Club Paradiso',
-    type: 'Club',
-    description: 'De beste dance muziek en sfeer in de stad',
-    location: 'Amsterdam',
-    openingHours: '22:00 - 05:00',
-    isOpen: true,
-    crowdLevel: 'Druk',
-    image: null // Geen foto voor dit venue
-  },
-  {
-    id: 2,
-    name: 'Bar Central',
-    type: 'Bar',
-    description: 'Gezellige bar met live muziek',
-    location: 'Utrecht',
-    openingHours: '16:00 - 02:00',
-    isOpen: true,
-    crowdLevel: 'Gemiddeld',
-    image: null // Geen foto voor dit venue
-  },
-  {
-    id: 3,
-    name: 'Restaurant Le Jardin',
-    type: 'Restaurant',
-    description: 'Frans restaurant met terras',
-    location: 'Rotterdam',
-    openingHours: '18:00 - 23:00',
-    isOpen: false,
-    crowdLevel: 'Rustig',
-    image: null // Geen foto voor dit venue
-  },
-  {
-    id: 4,
-    name: 'Café de Nacht',
-    type: 'Café',
-    description: 'Hip café met goede koffie',
-    location: 'Amsterdam',
-    openingHours: '08:00 - 18:00',
-    isOpen: true,
-    crowdLevel: 'Rustig',
-    image: null // Geen foto voor dit venue
-  },
-  {
-    id: 5,
-    name: 'Event Hall',
-    type: 'Evenement',
-    description: 'Grote evenementenhal voor concerten',
-    location: 'Den Haag',
-    openingHours: '19:00 - 01:00',
-    isOpen: true,
-    crowdLevel: 'Zeer Druk',
-    image: null // Geen foto voor dit venue
-  },
-  {
-    id: 6,
-    name: 'Night Club X',
-    type: 'Club',
-    description: 'Underground club met techno',
-    location: 'Amsterdam',
-    openingHours: '23:00 - 06:00',
-    isOpen: true,
-    crowdLevel: 'Druk',
-    image: null // Geen foto voor dit venue
+// Venues data from API
+const venues = ref([])
+const loading = ref(false)
+
+// Fetch venues from API
+const fetchVenues = async () => {
+  loading.value = true
+  try {
+    const apiVenues = await venuesService.getAll()
+    
+    // Transform API data to our format
+    venues.value = apiVenues.map(venue => {
+      const latestStatus = venue.venuestatus?.[0]
+      const address = venue.venueaddress?.[0]
+      const openingHours = venue.OpeningHours
+      
+      return {
+        id: venue.VenueID,
+        VenueID: venue.VenueID,
+        name: venue.Name,
+        type: venue.venuetype?.VenueType || 'Onbekend',
+        description: venue.Description || '',
+        location: address?.City || 'Onbekend',
+        address: address?.Address || '',
+        fullAddress: address?.Address || 'Adres onbekend',
+        city: address?.City || '',
+        postalCode: address?.PostalCode || '',
+        openingHours: openingHours,
+        formattedHours: formatOpeningHours(openingHours),
+        currentlyOpen: isCurrentlyOpen(openingHours),
+        isOpen: latestStatus?.IsOpen ?? null, // Keep for backward compatibility
+        crowdLevel: latestStatus?.CrowdLevel || 'Onbekend',
+        image: venue.venuefoto?.[0] ? `data:image/jpeg;base64,${arrayBufferToBase64(venue.venuefoto[0].Foto)}` : null
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching venues:', error)
+    venues.value = []
+  } finally {
+    loading.value = false
   }
-])
+}
+
+// Helper function to format opening hours beautifully
+const formatOpeningHours = (openingHours) => {
+  if (!openingHours) return 'Geen openingstijden bekend'
+  
+  if (typeof openingHours === 'string') {
+    try {
+      openingHours = JSON.parse(openingHours)
+    } catch (e) {
+      return openingHours
+    }
+  }
+  
+  if (typeof openingHours !== 'object' || Array.isArray(openingHours)) {
+    return 'Geen openingstijden bekend'
+  }
+  
+  // Day names mapping (Dutch)
+  const dayNames = {
+    'maandag': 'Ma',
+    'dinsdag': 'Di',
+    'woensdag': 'Wo',
+    'donderdag': 'Do',
+    'vrijdag': 'Vr',
+    'zaterdag': 'Za',
+    'zondag': 'Zo'
+  }
+  
+  const dayOrder = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag']
+  
+  // Group consecutive days with same hours
+  const groups = []
+  let currentGroup = null
+  
+  dayOrder.forEach(day => {
+    const hours = openingHours[day]
+    if (hours) {
+      if (currentGroup && currentGroup.hours === hours) {
+        currentGroup.days.push(day)
+      } else {
+        if (currentGroup) groups.push(currentGroup)
+        currentGroup = {
+          days: [day],
+          hours: hours
+        }
+      }
+    } else {
+      if (currentGroup) {
+        groups.push(currentGroup)
+        currentGroup = null
+      }
+    }
+  })
+  if (currentGroup) groups.push(currentGroup)
+  
+  // Format groups
+  const formatted = groups.map(group => {
+    const dayLabels = group.days.map(d => dayNames[d] || d).join(', ')
+    return `${dayLabels}: ${group.hours}`
+  })
+  
+  return formatted.length > 0 ? formatted.join('<br>') : 'Geen openingstijden bekend'
+}
+
+// Helper function to check if venue is currently open
+const isCurrentlyOpen = (openingHours) => {
+  if (!openingHours) return false
+  
+  // Parse if string
+  if (typeof openingHours === 'string') {
+    try {
+      openingHours = JSON.parse(openingHours)
+    } catch (e) {
+      return false
+    }
+  }
+  
+  if (typeof openingHours !== 'object' || Array.isArray(openingHours)) {
+    return false
+  }
+  
+  // Get current day and time
+  const now = new Date()
+  const currentDay = now.getDay() // 0 = Sunday, 1 = Monday, etc.
+  
+  // Map JavaScript day to Dutch day name
+  const dayMap = {
+    0: 'zondag',
+    1: 'maandag',
+    2: 'dinsdag',
+    3: 'woensdag',
+    4: 'donderdag',
+    5: 'vrijdag',
+    6: 'zaterdag'
+  }
+  
+  const currentDayName = dayMap[currentDay]
+  const todayHours = openingHours[currentDayName]
+  
+  if (!todayHours) return false
+  
+  // Parse time range (format: "09:00-21:00")
+  const timeMatch = todayHours.match(/(\d{2}):(\d{2})-(\d{2}):(\d{2})/)
+  if (!timeMatch) return false
+  
+  const openHour = parseInt(timeMatch[1])
+  const openMinute = parseInt(timeMatch[2])
+  const closeHour = parseInt(timeMatch[3])
+  const closeMinute = parseInt(timeMatch[4])
+  
+  const currentHour = now.getHours()
+  const currentMinute = now.getMinutes()
+  const currentTime = currentHour * 60 + currentMinute
+  const openTime = openHour * 60 + openMinute
+  const closeTime = closeHour * 60 + closeMinute
+  
+  return currentTime >= openTime && currentTime < closeTime
+}
+
+// Helper function to convert ArrayBuffer to base64
+const arrayBufferToBase64 = (buffer) => {
+  if (!buffer) return null
+  if (typeof buffer === 'string') return buffer
+  // If it's a Buffer or ArrayBuffer, convert it
+  if (buffer instanceof Buffer) {
+    return buffer.toString('base64')
+  }
+  // For ArrayBuffer, convert to base64
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
+// Update open/closed status periodically
+let statusUpdateInterval = null
+
+// Function to update venue statuses
+const updateVenueStatuses = () => {
+  venues.value = venues.value.map(venue => ({
+    ...venue,
+    currentlyOpen: isCurrentlyOpen(venue.openingHours)
+  }))
+}
+
+// Load venues on mount
+onMounted(() => {
+  fetchVenues()
+  
+  // Update status every minute
+  statusUpdateInterval = setInterval(() => {
+    updateVenueStatuses()
+  }, 60000) // Update every 60 seconds
+})
+
+// Cleanup interval on unmount
+onUnmounted(() => {
+  if (statusUpdateInterval) {
+    clearInterval(statusUpdateInterval)
+  }
+})
 
 const filteredVenues = computed(() => {
   let result = [...venues.value]
@@ -319,11 +462,11 @@ const filteredVenues = computed(() => {
     )
   }
 
-  // Filter op openingsstatus
+  // Filter op openingsstatus (gebruik currentlyOpen voor dynamische status)
   if (filters.value.openStatus === 'open') {
-    result = result.filter(venue => venue.isOpen)
+    result = result.filter(venue => venue.currentlyOpen === true)
   } else if (filters.value.openStatus === 'closed') {
-    result = result.filter(venue => !venue.isOpen)
+    result = result.filter(venue => venue.currentlyOpen === false)
   }
 
   // Filter op venue type
@@ -359,13 +502,75 @@ const resetFilters = () => {
   searchQuery.value = ''
 }
 
-const applyFilters = () => {
-  // Placeholder: Later koppelen aan API
-  console.log('Filters toepassen:', {
-    search: searchQuery.value,
-    filters: filters.value
-  })
-  // TODO: API call naar venues endpoint met filters
+const applyFilters = async () => {
+  loading.value = true
+  try {
+    const apiFilters = {}
+    
+    if (searchQuery.value.trim()) {
+      apiFilters.search = searchQuery.value.trim()
+    }
+    
+    const apiVenues = await venuesService.getAll(apiFilters)
+    
+    // Transform and apply client-side filters
+    let transformedVenues = apiVenues.map(venue => {
+      const latestStatus = venue.venuestatus?.[0]
+      const address = venue.venueaddress?.[0]
+      const openingHours = venue.OpeningHours
+      
+      return {
+        id: venue.VenueID,
+        VenueID: venue.VenueID,
+        name: venue.Name,
+        type: venue.venuetype?.VenueType || 'Onbekend',
+        description: venue.Description || '',
+        location: address?.City || 'Onbekend',
+        address: address?.Address || '',
+        fullAddress: address?.Address || 'Adres onbekend',
+        city: address?.City || '',
+        postalCode: address?.PostalCode || '',
+        openingHours: openingHours,
+        formattedHours: formatOpeningHours(openingHours),
+        currentlyOpen: isCurrentlyOpen(openingHours),
+        isOpen: latestStatus?.IsOpen ?? null, // Keep for backward compatibility
+        crowdLevel: latestStatus?.CrowdLevel || 'Onbekend',
+        image: venue.venuefoto?.[0] ? `data:image/jpeg;base64,${arrayBufferToBase64(venue.venuefoto[0].Foto)}` : null
+      }
+    })
+    
+    // Apply client-side filters (gebruik currentlyOpen voor dynamische status)
+    if (filters.value.openStatus === 'open') {
+      transformedVenues = transformedVenues.filter(v => v.currentlyOpen === true)
+    } else if (filters.value.openStatus === 'closed') {
+      transformedVenues = transformedVenues.filter(v => v.currentlyOpen === false)
+    }
+    
+    if (filters.value.venueTypes.length > 0) {
+      transformedVenues = transformedVenues.filter(v => 
+        filters.value.venueTypes.includes(v.type.toLowerCase())
+      )
+    }
+    
+    if (filters.value.crowdLevels.length > 0) {
+      const crowdMap = {
+        'low': 'Rustig',
+        'medium': 'Gemiddeld',
+        'high': 'Druk',
+        'very-high': 'Zeer Druk'
+      }
+      const crowdLevels = filters.value.crowdLevels.map(level => crowdMap[level])
+      transformedVenues = transformedVenues.filter(v => 
+        crowdLevels.includes(v.crowdLevel)
+      )
+    }
+    
+    venues.value = transformedVenues
+  } catch (error) {
+    console.error('Error applying filters:', error)
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -680,10 +885,41 @@ const applyFilters = () => {
 
 .venue-detail {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   color: #999;
   font-size: 13px;
+}
+
+.venue-detail.venue-address,
+.venue-detail.venue-hours {
+  align-items: flex-start;
+}
+
+.address-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.address-street {
+  color: #eaeaea;
+  font-weight: 500;
+}
+
+.address-city {
+  color: #999;
+  font-size: 12px;
+}
+
+.opening-hours-text {
+  line-height: 1.6;
+  color: #cfcfcf;
+}
+
+.status-icon {
+  margin-right: 4px;
+  font-size: 10px;
 }
 
 .venue-detail svg {

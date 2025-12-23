@@ -22,13 +22,26 @@
       <li>
         <RouterLink to="/profile" active-class="active">Profile</RouterLink>
       </li>
+      <li v-if="isAdmin">
+        <RouterLink to="/admin/role-requests" active-class="active">Admin</RouterLink>
+      </li>
     </ul>
   </nav>
 </template>
 
 <script setup>
 import { RouterLink } from 'vue-router'
+import { computed } from 'vue'
+import { useAuth } from '@/composables/useAuth.js'
 import logo from '@/assets/UitgaansFinderLogo.png'
+
+const { user, isAuthenticated } = useAuth()
+
+const isAdmin = computed(() => {
+  if (!isAuthenticated.value || !user.value) return false
+  const role = user.value.Role || ''
+  return role === 'Admin' || role === 'admin'
+})
 </script>
 
 <style scoped>

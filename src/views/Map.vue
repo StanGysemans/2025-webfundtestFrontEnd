@@ -164,14 +164,54 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { venuesService } from '@/services/venues.service.js'
 
 const searchQuery = ref('')
+const venues = ref([])
+const loading = ref(false)
+
+// Fetch venues from API
+const fetchVenues = async () => {
+  loading.value = true
+  try {
+    const apiVenues = await venuesService.getAll()
+    
+    // Transform API data
+    venues.value = apiVenues.map(venue => {
+      const latestStatus = venue.venuestatus?.[0]
+      const address = venue.venueaddress?.[0]
+      
+      return {
+        id: venue.VenueID,
+        name: venue.Name,
+        type: venue.venuetype?.VenueType || 'Onbekend',
+        description: venue.Description || '',
+        location: address?.City || 'Onbekend',
+        address: address?.Address || '',
+        lat: address?.Lat ? parseFloat(address.Lat) : null,
+        lng: address?.Lng ? parseFloat(address.Lng) : null,
+        isOpen: latestStatus?.IsOpen ?? null,
+        crowdLevel: latestStatus?.CrowdLevel || 'Onbekend'
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching venues:', error)
+    venues.value = []
+  } finally {
+    loading.value = false
+  }
+}
 
 const filters = ref({
   openStatus: 'all',
   venueTypes: [],
   crowdLevels: []
+})
+
+// Load venues on mount
+onMounted(() => {
+  fetchVenues()
 })
 
 const resetFilters = () => {
@@ -183,13 +223,71 @@ const resetFilters = () => {
   searchQuery.value = ''
 }
 
-const applyFilters = () => {
-  // Placeholder: Later koppelen aan API
-  console.log('Filters toepassen:', {
-    search: searchQuery.value,
-    filters: filters.value
-  })
-  // TODO: API call naar venues endpoint met filters
+const applyFilters = async () => {
+  loading.value = true
+  try {
+    const apiFilters = {}
+    
+    if (searchQuery.value.trim()) {
+      apiFilters.search = searchQuery.value.trim()
+    }
+    
+    const apiVenues = await venuesService.getAll(apiFilters)
+    
+    // Transform and apply client-side filters
+    let transformedVenues = apiVenues.map(venue => {
+      const latestStatus = venue.venuestatus?.[0]
+      const address = venue.venueaddress?.[0]
+      
+      return {
+        id: venue.VenueID,
+        name: venue.Name,
+        type: venue.venuetype?.VenueType || 'Onbekend',
+        description: venue.Description || '',
+        location: address?.City || 'Onbekend',
+        address: address?.Address || '',
+        lat: address?.Lat ? parseFloat(address.Lat) : null,
+        lng: address?.Lng ? parseFloat(address.Lng) : null,
+        isOpen: latestStatus?.IsOpen ?? null,
+        crowdLevel: latestStatus?.CrowdLevel || 'Onbekend'
+      }
+    })
+    
+    // Apply client-side filters
+    if (filters.value.openStatus === 'open') {
+      transformedVenues = transformedVenues.filter(v => v.isOpen === true)
+    } else if (filters.value.openStatus === 'closed') {
+      transformedVenues = transformedVenues.filter(v => v.isOpen === false)
+    }
+    
+    if (filters.value.venueTypes.length > 0) {
+      transformedVenues = transformedVenues.filter(v => {
+        const venueTypeLower = v.type.toLowerCase()
+        return filters.value.venueTypes.some(filterType => 
+          venueTypeLower.includes(filterType.toLowerCase())
+        )
+      })
+    }
+    
+    if (filters.value.crowdLevels.length > 0) {
+      const crowdMap = {
+        'low': 'Rustig',
+        'medium': 'Gemiddeld',
+        'high': 'Druk',
+        'very-high': 'Zeer Druk'
+      }
+      const crowdLevels = filters.value.crowdLevels.map(level => crowdMap[level])
+      transformedVenues = transformedVenues.filter(v => 
+        crowdLevels.includes(v.crowdLevel)
+      )
+    }
+    
+    venues.value = transformedVenues
+  } catch (error) {
+    console.error('Error applying filters:', error)
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

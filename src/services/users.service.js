@@ -1,16 +1,13 @@
 import api from '@/config/api.js'
 
 export const usersService = {
-  // Get current user (requires auth)
-  async getCurrentUser() {
-    // We need to get the user ID from the token, but we can use the /users/:id endpoint
-    // First, we'll need to decode the token or have an endpoint that returns current user
-    // For now, we'll use getUserById with the user ID from auth
-    const user = JSON.parse(localStorage.getItem('user') || '{}')
-    if (user.UserID) {
-      return this.getById(user.UserID)
-    }
-    throw new Error('No user ID found')
+  // Get all users with optional search filter (requires auth)
+  async getAll(filters = {}) {
+    const params = new URLSearchParams()
+    if (filters.search) params.append('search', filters.search)
+    
+    const response = await api.get(`/users?${params.toString()}`)
+    return response.data
   },
 
   // Get user by ID (requires auth)
@@ -25,4 +22,3 @@ export const usersService = {
     return response.data
   }
 }
-
