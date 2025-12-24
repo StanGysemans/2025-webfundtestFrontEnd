@@ -253,9 +253,10 @@ const initMap = () => {
   // Create map centered on Belgium (Brussels)
   map = L.map(mapContainer.value).setView([50.5039, 4.4699], 8)
   
-  // Add OpenStreetMap tiles
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
+  // Add dark mode map tiles (CartoDB Dark Matter)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
     maxZoom: 19
   }).addTo(map)
 }
@@ -574,23 +575,71 @@ watch(() => filters.value, () => {
 /* Leaflet dark theme adjustments */
 :deep(.leaflet-container) {
   background: #0f0f0f;
+  border: 1px solid #1f1f1f;
 }
 
 :deep(.leaflet-popup-content-wrapper) {
-  background: rgba(18, 18, 18, 0.95);
+  background: rgba(18, 18, 18, 0.98);
   color: #eaeaea;
-  border-radius: 8px;
+  border-radius: 12px;
+  border: 1px solid #2a2a2a;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 :deep(.leaflet-popup-tip) {
-  background: rgba(18, 18, 18, 0.95);
+  background: rgba(18, 18, 18, 0.98);
+  border: 1px solid #2a2a2a;
 }
 
 :deep(.leaflet-popup-close-button) {
   color: #9b5cff;
+  font-size: 20px;
+  padding: 4px 8px;
+  transition: all 0.2s ease;
 }
 
 :deep(.leaflet-popup-close-button:hover) {
+  color: #8a4de6;
+  background: rgba(155, 92, 255, 0.1);
+  border-radius: 4px;
+}
+
+:deep(.leaflet-control-zoom) {
+  border: 1px solid #2a2a2a;
+  background: rgba(18, 18, 18, 0.9);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:deep(.leaflet-control-zoom a) {
+  background: rgba(18, 18, 18, 0.9);
+  color: #9b5cff;
+  border-bottom: 1px solid #2a2a2a;
+  transition: all 0.2s ease;
+}
+
+:deep(.leaflet-control-zoom a:hover) {
+  background: rgba(155, 92, 255, 0.1);
+  color: #8a4de6;
+}
+
+:deep(.leaflet-control-zoom a:last-child) {
+  border-bottom: none;
+}
+
+:deep(.leaflet-control-attribution) {
+  background: rgba(18, 18, 18, 0.8);
+  color: #999;
+  border-top: 1px solid #2a2a2a;
+  font-size: 11px;
+}
+
+:deep(.leaflet-control-attribution a) {
+  color: #9b5cff;
+  transition: color 0.2s ease;
+}
+
+:deep(.leaflet-control-attribution a:hover) {
   color: #8a4de6;
 }
 
