@@ -20,5 +20,16 @@ export const usersService = {
   async update(id, userData) {
     const response = await api.put(`/users/${id}`, userData)
     return response.data
+  },
+
+  // Location preferences
+  async getLocationPreference() {
+    const response = await api.get('/users/me/location-preference')
+    return response.data
+  },
+
+  async updateLocationPreference(data) {
+    const response = await api.put('/users/me/location-preference', data)
+    return response.data
   }
 }

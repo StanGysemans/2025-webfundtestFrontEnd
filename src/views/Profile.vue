@@ -5,7 +5,20 @@
       <div class="id-card">
         <div class="id-card-header">
           <h2>UitgaansFinder</h2>
-          <span class="id-type">ID Kaart</span>
+          <div class="header-right">
+            <span class="id-type">ID Kaart</span>
+            <button 
+              v-if="isAuthenticated" 
+              class="btn-edit-profile-small" 
+              @click="showEditProfileModal = true"
+              title="Profiel bewerken"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         
         <div class="id-card-body">
@@ -148,6 +161,61 @@
       @close="showRegister = false"
       @register="handleRegister"
     />
+
+    <!-- EDIT PROFILE MODAL -->
+    <div v-if="showEditProfileModal" class="modal-overlay" @click.self="showEditProfileModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Profiel Bewerken</h2>
+          <button class="modal-close" @click="showEditProfileModal = false">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="saveProfile">
+            <div class="form-group">
+              <label>Voornaam</label>
+              <input type="text" v-model="editProfileForm.firstName" />
+            </div>
+            <div class="form-group">
+              <label>Achternaam</label>
+              <input type="text" v-model="editProfileForm.lastName" />
+            </div>
+            <div class="form-group">
+              <label>Leeftijd</label>
+              <input type="number" v-model.number="editProfileForm.age" min="0" max="150" />
+            </div>
+            <div class="form-group">
+              <label>Stad</label>
+              <input type="text" v-model="editProfileForm.campusCity" placeholder="bijv. Mechelen" />
+            </div>
+            <div class="form-group">
+              <label>Geslacht</label>
+              <select v-model="editProfileForm.gender">
+                <option value="">Selecteer geslacht</option>
+                <option value="Man">Man</option>
+                <option value="Vrouw">Vrouw</option>
+                <option value="Anders">Anders</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Bio</label>
+              <textarea v-model="editProfileForm.bio" rows="4" placeholder="Vertel iets over jezelf..." maxlength="255"></textarea>
+              <span class="char-count">{{ editProfileForm.bio.length }}/255</span>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-cancel" @click="showEditProfileModal = false">Annuleren</button>
+              <button type="submit" class="btn-submit" :disabled="savingProfile">
+                {{ savingProfile ? 'Opslaan...' : 'Opslaan' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 
     <!-- ROLE REQUEST MODAL -->
     <div v-if="showRoleRequestModal" class="modal-overlay" @click.self="showRoleRequestModal = false">
@@ -339,6 +407,148 @@
               <label>Website URL</label>
               <input type="url" v-model="venueForm.websiteUrl" placeholder="https://..." />
             </div>
+            <!-- HOOFD FOTO -->
+            <div class="form-group">
+              <label class="section-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                Hoofd Foto
+                <span class="label-badge">Verplicht</span>
+              </label>
+              <p class="section-description">Deze foto wordt gebruikt als hoofdafbeelding voor je venue</p>
+              <div class="photo-upload-container">
+                <div v-if="venueForm.hoofdFotoPreview" class="photo-preview hoofd-foto-preview">
+                  <img :src="venueForm.hoofdFotoPreview" alt="Hoofd foto preview" />
+                  <div class="photo-badge">Hoofd Foto</div>
+                  <button 
+                    type="button" 
+                    class="btn-remove-photo" 
+                    @click="removeHoofdFoto"
+                    title="Hoofd foto verwijderen"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+                <div v-else-if="venueForm.existingHoofdFoto" class="photo-preview hoofd-foto-preview">
+                  <img :src="venueForm.existingHoofdFoto" alt="Huidige hoofd foto" />
+                  <div class="photo-badge">Hoofd Foto</div>
+                  <button 
+                    type="button" 
+                    class="btn-remove-photo" 
+                    @click="removeHoofdFoto"
+                    title="Hoofd foto verwijderen"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+                <label class="file-upload-label" :class="{ 'has-photo': venueForm.hoofdFotoPreview || venueForm.existingHoofdFoto }">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    @change="handleHoofdFotoUpload"
+                    class="file-input"
+                    ref="hoofdFotoInput"
+                  />
+                  <span class="file-upload-text">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    {{ venueForm.hoofdFotoPreview || venueForm.existingHoofdFoto ? 'Hoofd foto wijzigen' : 'Hoofd foto uploaden' }}
+                  </span>
+                </label>
+              </div>
+              <p class="photo-hint">Maximaal 5MB. Ondersteunde formaten: JPG, PNG, GIF</p>
+            </div>
+
+            <!-- SFEERBEELDEN -->
+            <div class="form-group">
+              <label class="section-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                Sfeerbeelden
+                <span class="label-badge optional">Optioneel</span>
+              </label>
+              <p class="section-description">Upload meerdere foto's om de sfeer van je venue te tonen</p>
+              
+              <!-- Existing sfeerbeelden -->
+              <div v-if="venueForm.existingSfeerbeelden && venueForm.existingSfeerbeelden.length > 0" class="sfeerbeelden-grid">
+                <div 
+                  v-for="(sfeerbeeld, index) in venueForm.existingSfeerbeelden" 
+                  :key="index"
+                  class="sfeerbeeld-preview"
+                >
+                  <img :src="sfeerbeeld.url" :alt="`Sfeerbeeld ${index + 1}`" />
+                  <button 
+                    type="button" 
+                    class="btn-remove-sfeerbeeld" 
+                    @click="removeSfeerbeeld(index)"
+                    title="Sfeerbeeld verwijderen"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <!-- New sfeerbeelden preview -->
+              <div v-if="venueForm.newSfeerbeelden && venueForm.newSfeerbeelden.length > 0" class="sfeerbeelden-grid">
+                <div 
+                  v-for="(sfeerbeeld, index) in venueForm.newSfeerbeelden" 
+                  :key="`new-${index}`"
+                  class="sfeerbeeld-preview"
+                >
+                  <img :src="sfeerbeeld.preview" :alt="`Nieuw sfeerbeeld ${index + 1}`" />
+                  <div class="photo-badge new">Nieuw</div>
+                  <button 
+                    type="button" 
+                    class="btn-remove-sfeerbeeld" 
+                    @click="removeNewSfeerbeeld(index)"
+                    title="Sfeerbeeld verwijderen"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <label class="file-upload-label sfeerbeelden-upload">
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  multiple
+                  @change="handleSfeerbeeldenUpload"
+                  class="file-input"
+                  ref="sfeerbeeldenInput"
+                />
+                <span class="file-upload-text">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  Sfeerbeelden toevoegen
+                </span>
+              </label>
+              <p class="photo-hint">Je kunt meerdere foto's tegelijk selecteren. Maximaal 5MB per foto.</p>
+            </div>
             <button type="submit" class="btn-submit">Opslaan</button>
           </form>
         </div>
@@ -371,6 +581,18 @@ const userInfo = ref({
 })
 
 const loading = ref(false)
+const showEditProfileModal = ref(false)
+const savingProfile = ref(false)
+
+// Edit Profile Form
+const editProfileForm = ref({
+  firstName: '',
+  lastName: '',
+  age: null,
+  campusCity: '',
+  gender: '',
+  bio: ''
+})
 
 // Avatar Color Personalization - Load from localStorage or use default
 const getStoredColor = () => {
@@ -479,7 +701,7 @@ const fetchUserData = async () => {
       campusCity: userData.CampusCity || '',
       gender: userData.Gender || '',
       bio: userData.Bio || '',
-      role: userData.Role || 'User'
+      role: userData.Role || 'User',
     }
   } catch (error) {
     console.error('Error fetching user data:', error)
@@ -493,6 +715,57 @@ const fetchUserData = async () => {
 watch([isAuthenticated, user], () => {
   fetchUserData()
 }, { immediate: true })
+
+// Watch for edit modal opening to populate form
+watch(showEditProfileModal, (isOpen) => {
+  if (isOpen && isAuthenticated.value) {
+    // Populate form with current user data
+    editProfileForm.value = {
+      firstName: userInfo.value.firstName || '',
+      lastName: userInfo.value.lastName || '',
+      age: userInfo.value.age || null,
+      campusCity: userInfo.value.campusCity || '',
+      gender: userInfo.value.gender || '',
+      bio: userInfo.value.bio || '',
+    }
+  }
+})
+
+// Save profile changes
+const saveProfile = async () => {
+  if (!isAuthenticated.value || !user.value?.UserID) {
+    alert('Je moet ingelogd zijn om je profiel te bewerken')
+    return
+  }
+
+  savingProfile.value = true
+  try {
+    const updateData = {
+      FirstName: editProfileForm.value.firstName?.trim() || null,
+      LastName: editProfileForm.value.lastName?.trim() || null,
+      Age: editProfileForm.value.age || null,
+      CampusCity: editProfileForm.value.campusCity?.trim() || null,
+      Gender: editProfileForm.value.gender?.trim() || null,
+      Bio: editProfileForm.value.bio?.trim() || null
+    }
+
+    await usersService.update(user.value.UserID, updateData)
+    
+    // Refresh user data
+    await fetchUserData()
+    
+    // Close modal
+    showEditProfileModal.value = false
+    
+    alert('Profiel succesvol bijgewerkt!')
+  } catch (error) {
+    console.error('Error updating profile:', error)
+    const errorMessage = error.response?.data?.error || error.message || 'Er is een fout opgetreden bij het bijwerken van je profiel'
+    alert(errorMessage)
+  } finally {
+    savingProfile.value = false
+  }
+}
 
 // Check for pending role requests
 const checkPendingRequest = async () => {
@@ -586,7 +859,16 @@ const venueForm = ref({
   openingHours: '',
   email: '',
   phone: '',
-  websiteUrl: ''
+  websiteUrl: '',
+  // Hoofd foto
+  hoofdFotoPreview: null, // Base64 preview of new hoofd foto
+  existingHoofdFoto: null, // URL of existing hoofd foto from database
+  hoofdFotoFile: null, // File object for upload
+  existingHoofdFotoId: null, // ID of existing hoofd foto for update/delete
+  // Sfeerbeelden
+  existingSfeerbeelden: [], // Array of { id, url } for existing sfeerbeelden
+  newSfeerbeelden: [], // Array of { file, preview } for new sfeerbeelden
+  sfeerbeeldenToDelete: [] // Array of IDs to delete
 })
 
 // Opening hours per day
@@ -825,6 +1107,49 @@ const editVenue = async (index) => {
       const address = fullVenue.venueaddress?.[0]
       const contact = fullVenue.venuecontact?.[0]
       
+      // Load existing hoofd foto (IsHoofdFoto = true or first foto)
+      let existingHoofdFotoUrl = null
+      let existingHoofdFotoId = null
+      const hoofdFoto = fullVenue.venuefoto?.find(f => f.IsHoofdFoto === true) || fullVenue.venuefoto?.[0]
+      if (hoofdFoto && hoofdFoto.Foto) {
+        // Convert Buffer/ArrayBuffer to base64 using helper function
+        const base64 = arrayBufferToBase64(hoofdFoto.Foto)
+        if (base64) {
+          let mimeType = 'image/png'
+          const firstChars = base64.substring(0, 20)
+          if (firstChars.includes('/9j/')) {
+            mimeType = 'image/jpeg'
+          } else if (firstChars.includes('iVBORw0KGgo')) {
+            mimeType = 'image/png'
+          }
+          existingHoofdFotoUrl = `data:${mimeType};base64,${base64}`
+          existingHoofdFotoId = hoofdFoto.VenueFotoID
+        }
+      }
+      
+      // Load existing sfeerbeelden
+      const existingSfeerbeelden = []
+      if (fullVenue.venuesfeerbeeld && fullVenue.venuesfeerbeeld.length > 0) {
+        fullVenue.venuesfeerbeeld.forEach(sfeerbeeld => {
+          if (sfeerbeeld.Foto) {
+            const base64 = arrayBufferToBase64(sfeerbeeld.Foto)
+            if (base64) {
+              let mimeType = 'image/png'
+              const firstChars = base64.substring(0, 20)
+              if (firstChars.includes('/9j/')) {
+                mimeType = 'image/jpeg'
+              } else if (firstChars.includes('iVBORw0KGgo')) {
+                mimeType = 'image/png'
+              }
+              existingSfeerbeelden.push({
+                id: sfeerbeeld.SfeerbeeldID,
+                url: `data:${mimeType};base64,${base64}`
+              })
+            }
+          }
+        })
+      }
+      
       venueForm.value = {
         name: fullVenue.Name || '',
         description: fullVenue.Description || '',
@@ -839,7 +1164,16 @@ const editVenue = async (index) => {
         openingHours: '', // Will be loaded separately
         email: contact?.Email || '',
         phone: contact?.Phone || '',
-        websiteUrl: contact?.WebsiteURL || ''
+        websiteUrl: contact?.WebsiteURL || '',
+        // Hoofd foto
+        hoofdFotoPreview: null,
+        existingHoofdFoto: existingHoofdFotoUrl,
+        hoofdFotoFile: null,
+        existingHoofdFotoId: existingHoofdFotoId,
+        // Sfeerbeelden
+        existingSfeerbeelden: existingSfeerbeelden,
+        newSfeerbeelden: [],
+        sfeerbeeldenToDelete: []
       }
       
       // Load opening hours
@@ -930,7 +1264,7 @@ const saveVenue = async () => {
       venueData.VenueType = venueForm.value.type
     }
 
-    // Add address if provided - only include fields with values
+    // Prepare address fields (will be used for both create and update)
     const addressFields = {}
     if (venueForm.value.address?.trim()) {
       addressFields.Address = venueForm.value.address.trim()
@@ -953,15 +1287,8 @@ const saveVenue = async () => {
         addressFields.Lng = lngNum
       }
     }
-    
-    // Only add address if we have at least one field
-    if (Object.keys(addressFields).length > 0) {
-      venueData.venueaddress = {
-        create: addressFields
-      }
-    }
 
-    // Add contact if provided - only include fields with values
+    // Prepare contact fields (will be used for both create and update)
     const contactFields = {}
     if (venueForm.value.email?.trim()) {
       contactFields.Email = venueForm.value.email.trim()
@@ -972,21 +1299,199 @@ const saveVenue = async () => {
     if (venueForm.value.websiteUrl?.trim()) {
       contactFields.WebsiteURL = venueForm.value.websiteUrl.trim()
     }
-    
-    // Only add contact if we have at least one field
-    if (Object.keys(contactFields).length > 0) {
-      venueData.venuecontact = {
-        create: contactFields
-      }
-    }
 
     if (editingVenueIndex.value !== null) {
       // Update existing venue
       const venueId = userVenues.value[editingVenueIndex.value].VenueID
+      
+      // Update base venue
       await venuesService.update(venueId, venueData)
+      
+      // Update or create address
+      if (Object.keys(addressFields).length > 0) {
+        try {
+          // Check if address exists
+          const existingAddresses = await venuesService.getAddresses(venueId)
+          if (existingAddresses && existingAddresses.length > 0) {
+            // Update existing address
+            await venuesService.updateAddress(venueId, existingAddresses[0].VenueAddressID, addressFields)
+          } else {
+            // Create new address
+            await venuesService.createAddress(venueId, addressFields)
+          }
+        } catch (error) {
+          console.error('Error updating address:', error)
+        }
+      }
+      
+      // Update or create contact
+      if (Object.keys(contactFields).length > 0) {
+        try {
+          // Check if contact exists
+          const existingContacts = await venuesService.getContacts(venueId)
+          if (existingContacts && existingContacts.length > 0) {
+            // Update existing contact
+            await venuesService.updateContact(venueId, existingContacts[0].VenueContactID, contactFields)
+          } else {
+            // Create new contact
+            await venuesService.createContact(venueId, contactFields)
+          }
+        } catch (error) {
+          console.error('Error updating contact:', error)
+        }
+      }
+      
+      // Handle hoofd foto upload/update
+      if (venueForm.value.hoofdFotoFile) {
+        try {
+          console.log('📸 Uploading hoofd foto...')
+          // Convert file to base64
+          const base64Photo = await fileToBase64(venueForm.value.hoofdFotoFile)
+          console.log('✅ Base64 conversion successful, length:', base64Photo?.length)
+          
+          if (!base64Photo) {
+            throw new Error('Base64 conversie mislukt')
+          }
+          
+          // Check if hoofd foto already exists
+          if (venueForm.value.existingHoofdFotoId) {
+            console.log('🔄 Updating existing hoofd foto:', venueForm.value.existingHoofdFotoId)
+            // Update existing hoofd foto and set IsHoofdFoto = true
+            await venuesService.updateFoto(venueId, venueForm.value.existingHoofdFotoId, {
+              Foto: base64Photo,
+              IsHoofdFoto: true
+            })
+            console.log('✅ Hoofd foto updated successfully')
+          } else {
+            console.log('➕ Creating new hoofd foto')
+            // First, unset any existing hoofd foto
+            const existingFotos = await venuesService.getFotos(venueId)
+            if (existingFotos && existingFotos.length > 0) {
+              console.log('🔄 Unsetting existing fotos as hoofd foto')
+              // Update all existing fotos to IsHoofdFoto = false
+              for (const foto of existingFotos) {
+                await venuesService.updateFoto(venueId, foto.VenueFotoID, {
+                  IsHoofdFoto: false
+                })
+              }
+            }
+            // Create new hoofd foto with IsHoofdFoto = true
+            await venuesService.createFoto(venueId, {
+              Foto: base64Photo,
+              IsHoofdFoto: true
+            })
+            console.log('✅ New hoofd foto created successfully')
+          }
+        } catch (error) {
+          console.error('❌ Error uploading hoofd foto:', error)
+          console.error('Error details:', error.response?.data || error.message)
+          alert('Er is een fout opgetreden bij het uploaden van de hoofd foto: ' + (error.response?.data?.error || error.message || 'Onbekende fout'))
+        }
+      } else if (!venueForm.value.hoofdFotoFile && !venueForm.value.hoofdFotoPreview && !venueForm.value.existingHoofdFoto && venueForm.value.existingHoofdFotoId) {
+        // User removed hoofd foto - delete existing hoofd foto if any
+        // This happens when user had a photo, removed it, and didn't upload a new one
+        try {
+          await venuesService.deleteFoto(venueId, venueForm.value.existingHoofdFotoId)
+        } catch (error) {
+          console.error('Error deleting hoofd foto:', error)
+        }
+      }
+      
+      // Handle sfeerbeelden deletions
+      if (venueForm.value.sfeerbeeldenToDelete && venueForm.value.sfeerbeeldenToDelete.length > 0) {
+        for (const sfeerbeeldId of venueForm.value.sfeerbeeldenToDelete) {
+          try {
+            await venuesService.deleteSfeerbeeld(venueId, sfeerbeeldId)
+          } catch (error) {
+            console.error('Error deleting sfeerbeeld:', error)
+          }
+        }
+      }
+      
+      // Handle new sfeerbeelden upload
+      if (venueForm.value.newSfeerbeelden && venueForm.value.newSfeerbeelden.length > 0) {
+        for (const sfeerbeeld of venueForm.value.newSfeerbeelden) {
+          try {
+            const base64Photo = await fileToBase64(sfeerbeeld.file)
+            await venuesService.createSfeerbeeld(venueId, {
+              Foto: base64Photo
+            })
+          } catch (error) {
+            console.error('Error uploading sfeerbeeld:', error)
+          }
+        }
+      }
     } else {
       // Create new venue - backend will use authenticated user as owner
-      await venuesService.create(venueData)
+      // First create the base venue
+      const createdVenue = await venuesService.create(venueData)
+      const venueId = createdVenue.VenueID
+      
+      // Then create address separately if we have address data
+      if (Object.keys(addressFields).length > 0) {
+        try {
+          await venuesService.createAddress(venueId, addressFields)
+        } catch (error) {
+          console.error('Error creating address:', error)
+          // Don't fail the whole operation if address creation fails
+        }
+      }
+      
+      // Then create contact separately if we have contact data
+      if (Object.keys(contactFields).length > 0) {
+        try {
+          await venuesService.createContact(venueId, contactFields)
+        } catch (error) {
+          console.error('Error creating contact:', error)
+          // Don't fail the whole operation if contact creation fails
+        }
+      }
+      
+      // Handle hoofd foto upload
+      if (venueForm.value.hoofdFotoFile) {
+        try {
+          console.log('📸 Uploading hoofd foto for new venue...')
+          // Convert file to base64
+          const base64Photo = await fileToBase64(venueForm.value.hoofdFotoFile)
+          console.log('✅ Base64 conversion successful, length:', base64Photo?.length)
+          
+          if (!base64Photo) {
+            throw new Error('Base64 conversie mislukt')
+          }
+          
+          // Create new hoofd foto with IsHoofdFoto = true
+          await venuesService.createFoto(venueId, {
+            Foto: base64Photo,
+            IsHoofdFoto: true
+          })
+          console.log('✅ Hoofd foto created successfully')
+        } catch (error) {
+          console.error('❌ Error uploading hoofd foto:', error)
+          console.error('Error details:', error.response?.data || error.message)
+          alert('Er is een fout opgetreden bij het uploaden van de hoofd foto: ' + (error.response?.data?.error || error.message || 'Onbekende fout'))
+        }
+      }
+      
+      // Handle new sfeerbeelden upload
+      if (venueForm.value.newSfeerbeelden && venueForm.value.newSfeerbeelden.length > 0) {
+        console.log('📸 Uploading', venueForm.value.newSfeerbeelden.length, 'sfeerbeelden for new venue...')
+        for (const sfeerbeeld of venueForm.value.newSfeerbeelden) {
+          try {
+            const base64Photo = await fileToBase64(sfeerbeeld.file)
+            if (!base64Photo) {
+              throw new Error('Base64 conversie mislukt voor sfeerbeeld')
+            }
+            await venuesService.createSfeerbeeld(venueId, {
+              Foto: base64Photo
+            })
+            console.log('✅ Sfeerbeeld uploaded successfully')
+          } catch (error) {
+            console.error('❌ Error uploading sfeerbeeld:', error)
+            console.error('Error details:', error.response?.data || error.message)
+            alert('Er is een fout opgetreden bij het uploaden van een sfeerbeeld: ' + (error.response?.data?.error || error.message || 'Onbekende fout'))
+          }
+        }
+      }
     }
     
     await fetchUserVenues() // Refresh list
@@ -1006,25 +1511,220 @@ const saveVenue = async () => {
   }
 }
 
+// Handle hoofd foto upload
+const handleHoofdFotoUpload = (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    alert('Alleen afbeeldingen zijn toegestaan')
+    return
+  }
+  
+  // Validate file size (5MB max)
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Bestand is te groot. Maximum 5MB toegestaan.')
+    return
+  }
+  
+  // Create preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    venueForm.value.hoofdFotoPreview = e.target.result
+    venueForm.value.hoofdFotoFile = file
+    // Clear existing photo when new one is uploaded
+    venueForm.value.existingHoofdFoto = null
+  }
+  reader.readAsDataURL(file)
+}
+
+// Remove hoofd foto
+const removeHoofdFoto = () => {
+  venueForm.value.hoofdFotoPreview = null
+  venueForm.value.existingHoofdFoto = null
+  venueForm.value.hoofdFotoFile = null
+  venueForm.value.existingHoofdFotoId = null
+  // Reset file input
+  if (venueForm.value.$refs?.hoofdFotoInput) {
+    venueForm.value.$refs.hoofdFotoInput.value = ''
+  }
+}
+
+// Handle sfeerbeelden upload (multiple files)
+const handleSfeerbeeldenUpload = (event) => {
+  const files = Array.from(event.target.files || [])
+  if (files.length === 0) return
+  
+  files.forEach(file => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert(`${file.name} is geen geldige afbeelding`)
+      return
+    }
+    
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      alert(`${file.name} is te groot. Maximum 5MB toegestaan.`)
+      return
+    }
+    
+    // Create preview
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      venueForm.value.newSfeerbeelden.push({
+        file: file,
+        preview: e.target.result
+      })
+    }
+    reader.readAsDataURL(file)
+  })
+  
+  // Reset file input to allow selecting same files again
+  event.target.value = ''
+}
+
+// Remove existing sfeerbeeld
+const removeSfeerbeeld = (index) => {
+  const sfeerbeeld = venueForm.value.existingSfeerbeelden[index]
+  if (sfeerbeeld && sfeerbeeld.id) {
+    venueForm.value.sfeerbeeldenToDelete.push(sfeerbeeld.id)
+  }
+  venueForm.value.existingSfeerbeelden.splice(index, 1)
+}
+
+// Remove new sfeerbeeld (not yet saved)
+const removeNewSfeerbeeld = (index) => {
+  venueForm.value.newSfeerbeelden.splice(index, 1)
+}
+
+// Helper function to convert ArrayBuffer/Buffer to base64 (same as ClubList)
+const arrayBufferToBase64 = (buffer) => {
+  if (!buffer) {
+    console.warn('arrayBufferToBase64: buffer is null or undefined')
+    return null
+  }
+  
+  // If it's already a string (base64), return it
+  if (typeof buffer === 'string') {
+    // Check if it's already a data URL
+    if (buffer.startsWith('data:')) {
+      return buffer.split(',')[1] // Extract base64 part
+    }
+    return buffer
+  }
+  
+  try {
+    let arrayBuffer = null
+    
+    // Check for Prisma Buffer format: { type: 'Buffer', data: [array] }
+    if (buffer.type === 'Buffer' && Array.isArray(buffer.data)) {
+      arrayBuffer = buffer.data
+    }
+    // Check for .data property (alternative Prisma format)
+    else if (buffer.data && Array.isArray(buffer.data)) {
+      arrayBuffer = buffer.data
+    }
+    // Direct array
+    else if (Array.isArray(buffer)) {
+      arrayBuffer = buffer
+    }
+    // ArrayBuffer
+    else if (buffer instanceof ArrayBuffer) {
+      arrayBuffer = new Uint8Array(buffer)
+    }
+    // Uint8Array
+    else if (buffer instanceof Uint8Array) {
+      arrayBuffer = buffer
+    }
+    // Handle object with numeric keys (like {0: 255, 1: 216, ...})
+    else if (typeof buffer === 'object' && !Array.isArray(buffer) && buffer.constructor === Object) {
+      const keys = Object.keys(buffer)
+      const numericKeys = keys.filter(k => !isNaN(parseInt(k)))
+      
+      if (numericKeys.length > 0) {
+        const maxIndex = Math.max(...numericKeys.map(k => parseInt(k)))
+        arrayBuffer = []
+        for (let i = 0; i <= maxIndex; i++) {
+          if (buffer[i] !== undefined) {
+            arrayBuffer[i] = buffer[i]
+          }
+        }
+      } else {
+        console.warn('Object has no numeric keys, cannot convert')
+        return null
+      }
+    }
+    // Try to access .data if it exists
+    else if (buffer.data) {
+      arrayBuffer = buffer.data
+    }
+    else {
+      console.warn('Unknown buffer format, attempting direct conversion')
+      try {
+        arrayBuffer = new Uint8Array(buffer)
+      } catch (e) {
+        console.error('Failed to create Uint8Array from buffer:', e)
+        return null
+      }
+    }
+    
+    // Convert to base64
+    if (arrayBuffer) {
+      const uint8Array = arrayBuffer instanceof Uint8Array 
+        ? arrayBuffer 
+        : new Uint8Array(arrayBuffer)
+      
+      const base64 = btoa(
+        uint8Array.reduce((data, byte) => data + String.fromCharCode(byte), '')
+      )
+      return base64
+    } else {
+      console.warn('arrayBuffer is null after processing')
+      return null
+    }
+  } catch (error) {
+    console.error('Error converting buffer to base64:', error)
+    return null
+  }
+}
+
+// Convert file to base64 string
+const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      // Remove data:image/...;base64, prefix
+      const base64 = reader.result.split(',')[1]
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 const closeVenueModal = () => {
   showAddVenue.value = false
   editingVenueIndex.value = null
   venueForm.value = {
-    name: '',
-    description: '',
-    type: '',
-    address: '',
-    city: '',
-    postalCode: '',
-    lat: null,
-    lng: null,
-    maxCap: null,
-    averagePrice: '',
-    openingHours: '',
-    email: '',
-    phone: '',
-    websiteUrl: ''
-  }
+        name: '',
+        description: '',
+        type: '',
+        address: '',
+        city: '',
+        postalCode: '',
+        lat: null,
+        lng: null,
+        maxCap: null,
+        averagePrice: '',
+        openingHours: '',
+        email: '',
+        phone: '',
+        websiteUrl: '',
+        photoPreview: null,
+        existingPhoto: null,
+        photoFile: null
+      }
   
   // Reset opening hours
   daysOfWeek.forEach(day => {
@@ -1079,6 +1779,12 @@ const closeVenueModal = () => {
   font-size: 24px;
   color: white;
   margin: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .id-type {
@@ -1232,6 +1938,27 @@ const closeVenueModal = () => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.btn-edit-profile-small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-edit-profile-small:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
 }
 
 .btn-apply-role {
@@ -1752,14 +2479,77 @@ const closeVenueModal = () => {
   font-family: inherit;
 }
 
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.btn-cancel {
+  padding: 12px 24px;
+  background: rgba(18, 18, 18, 0.85);
+  border: 1px solid #1f1f1f;
+  border-radius: 8px;
+  color: #eaeaea;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-cancel:hover {
+  background: rgba(31, 31, 31, 0.95);
+  border-color: #2a2a2a;
+}
+
+.char-count {
+  display: block;
+  text-align: right;
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.btn-cancel {
+  padding: 12px 24px;
+  background: rgba(18, 18, 18, 0.85);
+  border: 1px solid #1f1f1f;
+  border-radius: 8px;
+  color: #eaeaea;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-cancel:hover {
+  background: rgba(31, 31, 31, 0.95);
+  border-color: #2a2a2a;
+}
+
+.char-count {
+  display: block;
+  text-align: right;
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
 .btn-submit {
-  width: 100%;
-  padding: 14px 24px;
+  padding: 12px 24px;
   background: #9b5cff;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   color: white;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -1793,5 +2583,213 @@ const closeVenueModal = () => {
 .modal {
   scrollbar-width: thin;
   scrollbar-color: rgba(155, 92, 255, 0.3) rgba(15, 15, 15, 0.5);
+}
+
+/* Photo Upload Styles */
+.photo-upload-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.photo-preview {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 16/9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(15, 15, 15, 0.5);
+  border: 1px solid #1f1f1f;
+}
+
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-remove-photo {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #2a2a2a;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.btn-remove-photo:hover {
+  background: rgba(220, 38, 38, 0.9);
+  border-color: #dc2626;
+  transform: scale(1.1);
+}
+
+.file-upload-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: rgba(18, 18, 18, 0.85);
+  border: 2px dashed #1f1f1f;
+  border-radius: 10px;
+  color: #eaeaea;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: fit-content;
+}
+
+.file-upload-label:hover {
+  background: rgba(31, 31, 31, 0.95);
+  border-color: #9b5cff;
+  color: #9b5cff;
+}
+
+.file-upload-label.has-photo {
+  border-color: #9b5cff;
+  background: rgba(155, 92, 255, 0.1);
+}
+
+.file-upload-label svg {
+  width: 20px;
+  height: 20px;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-upload-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.photo-hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+/* Section Labels */
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #9b5cff;
+  margin-bottom: 8px;
+}
+
+.label-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(155, 92, 255, 0.2);
+  color: #9b5cff;
+  border: 1px solid rgba(155, 92, 255, 0.3);
+}
+
+.label-badge.optional {
+  background: rgba(100, 100, 100, 0.2);
+  color: #999;
+  border-color: rgba(100, 100, 100, 0.3);
+}
+
+.section-description {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 12px;
+}
+
+/* Hoofd Foto Preview */
+.hoofd-foto-preview {
+  border: 2px solid #9b5cff;
+  box-shadow: 0 0 0 3px rgba(155, 92, 255, 0.1);
+}
+
+.photo-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 4px 8px;
+  background: rgba(155, 92, 255, 0.9);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  z-index: 1;
+}
+
+.photo-badge.new {
+  background: rgba(16, 185, 129, 0.9);
+}
+
+/* Sfeerbeelden Grid */
+.sfeerbeelden-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sfeerbeeld-preview {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(15, 15, 15, 0.5);
+  border: 1px solid #1f1f1f;
+}
+
+.sfeerbeeld-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-remove-sfeerbeeld {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #2a2a2a;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+
+.btn-remove-sfeerbeeld:hover {
+  background: rgba(220, 38, 38, 0.9);
+  border-color: #dc2626;
+  transform: scale(1.1);
+}
+
+.btn-remove-sfeerbeeld svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sfeerbeelden-upload {
+  margin-top: 8px;
 }
 </style>

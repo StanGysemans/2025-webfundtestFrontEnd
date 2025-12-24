@@ -6,40 +6,60 @@
         <p>Beheer alle rol aanvragen van gebruikers</p>
       </div>
 
-      <!-- Filter Tabs -->
-      <div class="filter-tabs">
+      <!-- Main Tabs -->
+      <div class="main-tabs">
         <button 
-          class="tab-btn" 
-          :class="{ active: filterStatus === 'all' }"
-          @click="filterStatus = 'all'"
+          class="main-tab-btn" 
+          :class="{ active: activeTab === 'requests' }"
+          @click="activeTab = 'requests'"
         >
-          Alle ({{ allRequests.length }})
+          Role Requests
         </button>
         <button 
-          class="tab-btn" 
-          :class="{ active: filterStatus === 'pending' }"
-          @click="filterStatus = 'pending'"
+          class="main-tab-btn" 
+          :class="{ active: activeTab === 'venues' }"
+          @click="activeTab = 'venues'"
         >
-          In behandeling ({{ pendingRequests.length }})
-        </button>
-        <button 
-          class="tab-btn" 
-          :class="{ active: filterStatus === 'approved' }"
-          @click="filterStatus = 'approved'"
-        >
-          Goedgekeurd ({{ approvedRequests.length }})
-        </button>
-        <button 
-          class="tab-btn" 
-          :class="{ active: filterStatus === 'rejected' }"
-          @click="filterStatus = 'rejected'"
-        >
-          Afgewezen ({{ rejectedRequests.length }})
+          Venues Beheer
         </button>
       </div>
 
-      <!-- Requests List -->
-      <div class="requests-list">
+      <!-- Role Requests Tab -->
+      <div v-if="activeTab === 'requests'">
+        <!-- Filter Tabs -->
+        <div class="filter-tabs">
+          <button 
+            class="tab-btn" 
+            :class="{ active: filterStatus === 'all' }"
+            @click="filterStatus = 'all'"
+          >
+            Alle ({{ allRequests.length }})
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: filterStatus === 'pending' }"
+            @click="filterStatus = 'pending'"
+          >
+            In behandeling ({{ pendingRequests.length }})
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: filterStatus === 'approved' }"
+            @click="filterStatus = 'approved'"
+          >
+            Goedgekeurd ({{ approvedRequests.length }})
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: filterStatus === 'rejected' }"
+            @click="filterStatus = 'rejected'"
+          >
+            Afgewezen ({{ rejectedRequests.length }})
+          </button>
+        </div>
+
+        <!-- Requests List -->
+        <div class="requests-list">
         <div 
           v-for="request in filteredRequests" 
           :key="request.RoleRequestID"
@@ -109,9 +129,67 @@
           </div>
         </div>
 
-        <!-- Empty State -->
-        <div v-if="filteredRequests.length === 0" class="empty-state">
-          <p>Geen aanvragen gevonden</p>
+          <!-- Empty State -->
+          <div v-if="filteredRequests.length === 0" class="empty-state">
+            <p>Geen aanvragen gevonden</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Venues Tab -->
+      <div v-if="activeTab === 'venues'">
+        <div class="venues-header">
+          <h2>Alle Venues</h2>
+          <p>Beheer en verwijder venues uit het systeem</p>
+        </div>
+
+        <div v-if="loadingVenues" class="loading-state">
+          <p>Venues laden...</p>
+        </div>
+
+        <div v-else class="venues-list">
+          <div 
+            v-for="venue in allVenues" 
+            :key="venue.VenueID"
+            class="venue-card"
+          >
+            <div class="venue-header">
+              <div class="venue-info">
+                <h3>{{ venue.Name }}</h3>
+                <p class="venue-type">{{ venue.venuetype?.VenueType || 'Onbekend' }}</p>
+              </div>
+              <button 
+                class="btn-delete" 
+                @click="handleDeleteVenue(venue.VenueID, venue.Name)"
+                :disabled="deletingVenueId === venue.VenueID"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                {{ deletingVenueId === venue.VenueID ? 'Verwijderen...' : 'Verwijderen' }}
+              </button>
+            </div>
+            
+            <div class="venue-details">
+              <p v-if="venue.Description" class="venue-description">{{ venue.Description }}</p>
+              <div class="venue-meta">
+                <span v-if="venue.venueaddress?.[0]">
+                  📍 {{ venue.venueaddress[0].Address || '' }}{{ venue.venueaddress[0].Address && venue.venueaddress[0].City ? ', ' : '' }}{{ venue.venueaddress[0].City || '' }}
+                </span>
+                <span v-if="venue.venuecontact?.[0]?.Email">
+                  ✉️ {{ venue.venuecontact[0].Email }}
+                </span>
+                <span v-if="venue.OwnerID">
+                  👤 Owner ID: {{ venue.OwnerID }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="allVenues.length === 0" class="empty-state">
+            <p>Geen venues gevonden</p>
+          </div>
         </div>
       </div>
     </div>
@@ -119,9 +197,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuth } from '@/composables/useAuth.js'
 import { roleRequestsService } from '@/services/rolerequests.service.js'
+import { venuesService } from '@/services/venues.service.js'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -143,6 +222,10 @@ onMounted(() => {
 const allRequests = ref([])
 const filterStatus = ref('all')
 const processingRequest = ref(null)
+const activeTab = ref('requests')
+const allVenues = ref([])
+const loadingVenues = ref(false)
+const deletingVenueId = ref(null)
 
 const pendingRequests = computed(() => 
   allRequests.value.filter(r => r.Status === 'pending')
@@ -240,6 +323,44 @@ const formatDate = (dateString) => {
   })
 }
 
+const fetchVenues = async () => {
+  loadingVenues.value = true
+  try {
+    allVenues.value = await venuesService.getAll()
+  } catch (error) {
+    console.error('Error fetching venues:', error)
+    alert('Er is een fout opgetreden bij het ophalen van venues')
+  } finally {
+    loadingVenues.value = false
+  }
+}
+
+const handleDeleteVenue = async (venueId, venueName) => {
+  if (!confirm(`Weet je zeker dat je "${venueName}" wilt verwijderen? Dit verwijdert ook alle gerelateerde data (adres, contact, foto's, status, etc.). Deze actie kan niet ongedaan worden gemaakt.`)) {
+    return
+  }
+
+  deletingVenueId.value = venueId
+  try {
+    await venuesService.delete(venueId)
+    await fetchVenues() // Refresh list
+    alert('Venue succesvol verwijderd')
+  } catch (error) {
+    console.error('Error deleting venue:', error)
+    alert('Er is een fout opgetreden bij het verwijderen van het venue')
+  } finally {
+    deletingVenueId.value = null
+  }
+}
+
+// Watch for tab changes
+const watchActiveTab = computed(() => activeTab.value)
+watch(watchActiveTab, (newTab) => {
+  if (newTab === 'venues' && allVenues.value.length === 0) {
+    fetchVenues()
+  }
+})
+
 onMounted(() => {
   if (isAuthenticated.value && isAdmin.value) {
     fetchRequests()
@@ -277,6 +398,35 @@ onMounted(() => {
   color: #999;
   font-size: 16px;
   margin: 0;
+}
+
+/* Main Tabs */
+.main-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 32px;
+  border-bottom: 2px solid #1f1f1f;
+}
+
+.main-tab-btn {
+  padding: 16px 32px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: #999;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.main-tab-btn:hover {
+  color: #eaeaea;
+}
+
+.main-tab-btn.active {
+  color: #9b5cff;
+  border-bottom-color: #9b5cff;
 }
 
 /* Filter Tabs */
@@ -521,6 +671,120 @@ onMounted(() => {
 .empty-state p {
   margin: 0;
   font-size: 18px;
+}
+
+/* Venues Tab Styles */
+.venues-header {
+  margin-bottom: 32px;
+}
+
+.venues-header h2 {
+  font-size: 32px;
+  color: #9b5cff;
+  margin: 0 0 8px 0;
+}
+
+.venues-header p {
+  color: #999;
+  font-size: 16px;
+  margin: 0;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 64px 32px;
+  color: #666;
+}
+
+.loading-state p {
+  margin: 0;
+  font-size: 18px;
+}
+
+.venues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.venue-card {
+  background: rgba(18, 18, 18, 0.85);
+  border: 1px solid #1f1f1f;
+  border-radius: 16px;
+  padding: 24px;
+  backdrop-filter: blur(6px);
+}
+
+.venue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.venue-info h3 {
+  font-size: 20px;
+  color: #eaeaea;
+  margin: 0 0 8px 0;
+}
+
+.venue-type {
+  font-size: 14px;
+  color: #9b5cff;
+  margin: 0;
+  font-weight: 600;
+}
+
+.btn-delete {
+  padding: 10px 20px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.venue-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.venue-description {
+  color: #cfcfcf;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.venue-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.venue-meta span {
+  color: #999;
+  font-size: 13px;
 }
 </style>
 

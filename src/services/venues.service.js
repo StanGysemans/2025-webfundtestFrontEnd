@@ -100,6 +100,27 @@ export const venuesService = {
     return response.data
   },
 
+  // ===== VENUE SFEERBEELDEN =====
+  async getSfeerbeelden(venueId) {
+    const response = await api.get(`/venues/${venueId}/sfeerbeelden`)
+    return response.data
+  },
+
+  async createSfeerbeeld(venueId, sfeerbeeldData) {
+    const response = await api.post(`/venues/${venueId}/sfeerbeelden`, sfeerbeeldData)
+    return response.data
+  },
+
+  async updateSfeerbeeld(venueId, sfeerbeeldId, sfeerbeeldData) {
+    const response = await api.put(`/venues/${venueId}/sfeerbeelden/${sfeerbeeldId}`, sfeerbeeldData)
+    return response.data
+  },
+
+  async deleteSfeerbeeld(venueId, sfeerbeeldId) {
+    const response = await api.delete(`/venues/${venueId}/sfeerbeelden/${sfeerbeeldId}`)
+    return response.data
+  },
+
   // ===== VENUE STATUS =====
   async getStatuses(venueId) {
     const response = await api.get(`/venues/${venueId}/statuses`)

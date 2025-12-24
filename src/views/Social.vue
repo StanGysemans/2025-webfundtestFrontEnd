@@ -45,41 +45,6 @@
       </div>
     </section>
 
-    <!-- PENDING FRIEND REQUESTS -->
-    <section v-if="pendingRequests && pendingRequests.length > 0" class="friends-section">
-      <h2>Vriend Verzoeken ({{ pendingRequests.length }})</h2>
-      <div class="friends-list horizontal">
-        <div 
-          v-for="request in pendingRequests" 
-          :key="request.FriendID" 
-          class="friend-card"
-        >
-          <div 
-            class="friend-avatar"
-            :style="{ background: `linear-gradient(135deg, ${request.avatarColor || '#9b5cff'} 0%, ${request.avatarColorDark || '#6d28d9'} 100%)` }"
-          >
-            <span>{{ request.initials }}</span>
-          </div>
-          <p class="friend-name">{{ request.name }}</p>
-          <div class="request-actions">
-            <button class="btn-accept" @click="acceptFriendRequest(request.FriendID)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              Accepteren
-            </button>
-            <button class="btn-reject" @click="rejectFriendRequest(request.FriendID)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-              Afwijzen
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- FRIENDS LIST -->
     <section class="friends-section">
       <h2>Mijn Vrienden</h2>
@@ -134,6 +99,55 @@
         <div v-if="filteredFriends.length === 0" class="empty-state">
           <p>Geen vrienden gevonden</p>
         </div>
+      </div>
+    </section>
+
+    <!-- PENDING FRIEND REQUESTS -->
+    <section class="friends-section pending-requests-section">
+      <h2>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="8.5" cy="7" r="4"></circle>
+          <line x1="20" y1="8" x2="20" y2="14"></line>
+          <line x1="23" y1="11" x2="17" y2="11"></line>
+        </svg>
+        Vriend Verzoeken
+        <span v-if="pendingRequests && pendingRequests.length > 0" class="badge-count">{{ pendingRequests.length }}</span>
+      </h2>
+      <div v-if="pendingRequests && pendingRequests.length > 0" class="friends-list horizontal">
+        <div 
+          v-for="request in pendingRequests" 
+          :key="request.FriendID" 
+          class="friend-card request-card"
+        >
+          <div 
+            class="friend-avatar"
+            :style="{ background: `linear-gradient(135deg, ${request.avatarColor || '#9b5cff'} 0%, ${request.avatarColorDark || '#6d28d9'} 100%)` }"
+          >
+            <span>{{ request.initials }}</span>
+          </div>
+          <p class="friend-name">{{ request.name }}</p>
+          <div class="request-actions">
+            <button class="btn-accept-icon" @click="acceptFriendRequest(request.FriendID)" title="Accepteren">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </button>
+            <button class="btn-reject-icon" @click="rejectFriendRequest(request.FriendID)" title="Afwijzen">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div v-else class="empty-requests">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity: 0.3; margin-bottom: 12px;">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="8.5" cy="7" r="4"></circle>
+        </svg>
+        <p>Geen openstaande vriend verzoeken</p>
       </div>
     </section>
 
@@ -315,29 +329,39 @@ const fetchPendingRequests = async () => {
 
   try {
     const requests = await friendsService.getPendingRequests()
+    console.log('Fetched pending requests:', requests)
     
-    // Transform to show only requests where current user is the recipient (not the sender)
+    // Backend already filters: returns requests where current user is involved but NOT the requester
+    // So all requests here are ones where current user is the recipient
     pendingRequests.value = requests
-      .filter(request => {
-        // Only show requests where current user is UserID2 (recipient)
-        return request.UserID2 === user.value.UserID && request.Status === 'pending'
-      })
+      .filter(request => request.Status === 'pending') // Extra safety check
       .map(request => {
-        const requester = request.user_friend_UserID1Touser
+        // Determine which user is the requester (the one who sent the request)
+        // The requester is the one whose UserID matches RequestedBy
+        const requester = request.user_friend_UserID1Touser.UserID === request.RequestedBy
+          ? request.user_friend_UserID1Touser
+          : request.user_friend_UserID2Touser
+        
+        // Fallback: if RequestedBy doesn't match either, use RequestedByTouser relation
+        const finalRequester = requester || request.user_friend_RequestedByTouser || request.user_friend_UserID1Touser
+        
         return {
           FriendID: request.FriendID,
-          id: requester.UserID,
-          UserID: requester.UserID,
-          name: `${requester.FirstName || ''} ${requester.LastName || ''}`.trim(),
-          firstName: requester.FirstName || '',
-          lastName: requester.LastName || '',
-          initials: `${(requester.FirstName || '')[0] || ''}${(requester.LastName || '')[0] || ''}`.toUpperCase(),
-          avatarColor: requester.AvatarColor || '#9b5cff',
-          avatarColorDark: requester.AvatarColorDark || '#6d28d9'
+          id: finalRequester.UserID,
+          UserID: finalRequester.UserID,
+          name: `${finalRequester.FirstName || ''} ${finalRequester.LastName || ''}`.trim() || 'Onbekend',
+          firstName: finalRequester.FirstName || '',
+          lastName: finalRequester.LastName || '',
+          initials: `${(finalRequester.FirstName || '')[0] || ''}${(finalRequester.LastName || '')[0] || ''}`.toUpperCase() || '??',
+          avatarColor: finalRequester.AvatarColor || '#9b5cff',
+          avatarColorDark: finalRequester.AvatarColorDark || '#6d28d9'
         }
       })
+    
+    console.log('Processed pending requests:', pendingRequests.value)
   } catch (error) {
     console.error('Error fetching pending requests:', error)
+    console.error('Error details:', error.response?.data || error.message)
     pendingRequests.value = []
   }
 }
@@ -844,49 +868,52 @@ watch(searchQuery, () => {
 
 .request-actions {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   margin-top: 12px;
   width: 100%;
+  justify-content: center;
+  align-items: center;
 }
 
-.btn-accept,
-.btn-reject {
-  flex: 1;
-  padding: 8px 12px;
+.btn-accept-icon,
+.btn-reject-icon {
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border: none;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   transition: all 0.3s ease;
+  flex-shrink: 0;
 }
 
-.btn-accept {
+.btn-accept-icon {
   background: rgba(34, 197, 94, 0.2);
   color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  border: 2px solid rgba(34, 197, 94, 0.4);
 }
 
-.btn-accept:hover {
+.btn-accept-icon:hover {
   background: rgba(34, 197, 94, 0.3);
-  border-color: rgba(34, 197, 94, 0.5);
-  transform: translateY(-2px);
+  border-color: #22c55e;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
 }
 
-.btn-reject {
+.btn-reject-icon {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 2px solid rgba(239, 68, 68, 0.4);
 }
 
-.btn-reject:hover {
+.btn-reject-icon:hover {
   background: rgba(239, 68, 68, 0.3);
-  border-color: rgba(239, 68, 68, 0.5);
-  transform: translateY(-2px);
+  border-color: #ef4444;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* Empty State */
@@ -900,6 +927,60 @@ watch(searchQuery, () => {
 .empty-state p {
   margin: 0;
   font-size: 16px;
+}
+
+/* Pending Requests Section */
+.pending-requests-section {
+  border: 2px solid rgba(155, 92, 255, 0.2);
+  border-radius: 16px;
+  padding: 24px;
+  background: rgba(155, 92, 255, 0.05);
+  width: 100%;
+  max-width: 100%;
+  margin-top: 48px;
+}
+
+.pending-requests-section h2 {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.badge-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  margin-left: 12px;
+  background: #9b5cff;
+  color: white;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.request-card {
+  border: 1px solid rgba(155, 92, 255, 0.3);
+  background: rgba(155, 92, 255, 0.05);
+}
+
+.request-card:hover {
+  border-color: rgba(155, 92, 255, 0.5);
+  background: rgba(155, 92, 255, 0.1);
+}
+
+.empty-requests {
+  text-align: center;
+  padding: 48px 20px;
+  color: #666;
+}
+
+.empty-requests p {
+  margin: 0;
+  font-size: 16px;
+  color: #999;
 }
 
 /* ID CARD MODAL */
