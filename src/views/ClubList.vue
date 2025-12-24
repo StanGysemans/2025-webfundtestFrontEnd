@@ -108,40 +108,44 @@
 
           <!-- Crowd Level Filter -->
           <div class="filter-card">
-            <h3>Drukte</h3>
-            <div class="filter-options">
-              <label class="filter-option">
+            <h3>Bezetting (%)</h3>
+            <div class="slider-filter-container">
+              <!-- Min Slider -->
+              <div class="slider-item">
+                <label class="slider-label">
+                  <span>Minimum:</span>
+                  <span class="slider-value">{{ filters.crowdLevelMin }}%</span>
+                </label>
                 <input 
-                  type="checkbox" 
-                  value="low" 
-                  v-model="filters.crowdLevels"
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  v-model.number="filters.crowdLevelMin"
+                  class="range-slider"
+                  @input="updateCrowdLevelFilter"
                 />
-                <span>Rustig</span>
-              </label>
-              <label class="filter-option">
+              </div>
+              
+              <!-- Max Slider -->
+              <div class="slider-item">
+                <label class="slider-label">
+                  <span>Maximum:</span>
+                  <span class="slider-value">{{ filters.crowdLevelMax }}%</span>
+                </label>
                 <input 
-                  type="checkbox" 
-                  value="medium" 
-                  v-model="filters.crowdLevels"
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  v-model.number="filters.crowdLevelMax"
+                  class="range-slider"
+                  @input="updateCrowdLevelFilter"
                 />
-                <span>Gemiddeld</span>
-              </label>
-              <label class="filter-option">
-                <input 
-                  type="checkbox" 
-                  value="high" 
-                  v-model="filters.crowdLevels"
-                />
-                <span>Druk</span>
-              </label>
-              <label class="filter-option">
-                <input 
-                  type="checkbox" 
-                  value="very-high" 
-                  v-model="filters.crowdLevels"
-                />
-                <span>Zeer Druk</span>
-              </label>
+              </div>
+              
+              <div class="slider-info">
+                <span v-if="filters.crowdLevelMin === 0 && filters.crowdLevelMax === 100">Alle bezettingsniveaus</span>
+                <span v-else>{{ filters.crowdLevelMin }}% - {{ filters.crowdLevelMax }}% bezet</span>
+              </div>
             </div>
           </div>
 
@@ -414,7 +418,8 @@ const searchQuery = ref('')
 const filters = ref({
   openStatus: 'all',
   venueTypes: [],
-  crowdLevels: []
+  crowdLevelMin: 0,
+  crowdLevelMax: 100
 })
 
 // Venues data from API
@@ -853,18 +858,15 @@ const filteredVenues = computed(() => {
     })
   }
 
-  // Filter op drukte
-  if (filters.value.crowdLevels.length > 0) {
-    const crowdMap = {
-      'low': 'Rustig',
-      'medium': 'Gemiddeld',
-      'high': 'Druk',
-      'very-high': 'Zeer Druk'
-    }
-    const crowdLevels = filters.value.crowdLevels.map(level => crowdMap[level])
-    result = result.filter(venue => 
-      crowdLevels.includes(venue.crowdLevel)
-    )
+  // Filter op bezetting percentage
+  if (filters.value.crowdLevelMin > 0 || filters.value.crowdLevelMax < 100) {
+    result = result.filter(venue => {
+      const percentage = venue.crowdLevelPercentage
+      if (percentage === null || percentage === undefined) {
+        return false // Filter out venues without crowd level data
+      }
+      return percentage >= filters.value.crowdLevelMin && percentage <= filters.value.crowdLevelMax
+    })
   }
 
   return result
@@ -874,9 +876,20 @@ const resetFilters = () => {
   filters.value = {
     openStatus: 'all',
     venueTypes: [],
-    crowdLevels: []
+    crowdLevelMin: 0,
+    crowdLevelMax: 100
   }
   searchQuery.value = ''
+}
+
+// Update crowd level filter to ensure min <= max
+const updateCrowdLevelFilter = () => {
+  if (filters.value.crowdLevelMin > filters.value.crowdLevelMax) {
+    filters.value.crowdLevelMin = filters.value.crowdLevelMax
+  }
+  if (filters.value.crowdLevelMax < filters.value.crowdLevelMin) {
+    filters.value.crowdLevelMax = filters.value.crowdLevelMin
+  }
 }
 
 // Open venue detail modal
@@ -1191,17 +1204,15 @@ const applyFilters = async () => {
       })
     }
     
-    if (filters.value.crowdLevels.length > 0) {
-      const crowdMap = {
-        'low': 'Rustig',
-        'medium': 'Gemiddeld',
-        'high': 'Druk',
-        'very-high': 'Zeer Druk'
-      }
-      const crowdLevels = filters.value.crowdLevels.map(level => crowdMap[level])
-      filteredVenues = filteredVenues.filter(v => 
-        crowdLevels.includes(v.crowdLevel)
-      )
+    // Filter op bezetting percentage
+    if (filters.value.crowdLevelMin > 0 || filters.value.crowdLevelMax < 100) {
+      filteredVenues = filteredVenues.filter(v => {
+        const percentage = v.crowdLevelPercentage
+        if (percentage === null || percentage === undefined) {
+          return false // Filter out venues without crowd level data
+        }
+        return percentage >= filters.value.crowdLevelMin && percentage <= filters.value.crowdLevelMax
+      })
     }
     
     venues.value = filteredVenues
@@ -1320,6 +1331,88 @@ const applyFilters = async () => {
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 600;
+}
+
+/* Slider Filter Container */
+.slider-filter-container {
+  padding: 8px 0;
+}
+
+.slider-item {
+  margin-bottom: 20px;
+}
+
+.slider-item:last-of-type {
+  margin-bottom: 12px;
+}
+
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #eaeaea;
+  font-weight: 500;
+}
+
+.slider-value {
+  color: #9b5cff;
+  font-weight: 600;
+}
+
+.range-slider {
+  width: 100%;
+  height: 6px;
+  background: rgba(31, 31, 31, 0.8);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #9b5cff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #0f0f0f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+  background: #8a4de6;
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(155, 92, 255, 0.5);
+}
+
+.range-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #9b5cff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #0f0f0f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.range-slider::-moz-range-thumb:hover {
+  background: #8a4de6;
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(155, 92, 255, 0.5);
+}
+
+.slider-info {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #999;
+  text-align: center;
 }
 
 .filter-options {

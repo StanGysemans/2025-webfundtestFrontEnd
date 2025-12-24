@@ -130,7 +130,21 @@
                   <span>{{ venue.address }}{{ venue.address && venue.city ? ', ' : '' }}{{ venue.city }}</span>
                 </div>
               </div>
-              <button class="btn-edit" @click="editVenue(index)">Bewerken</button>
+              <div class="venue-actions">
+                <button class="btn-edit" @click="editVenue(index)">Bewerken</button>
+                <button 
+                  class="btn-delete-venue" 
+                  @click="handleDeleteVenue(venue.id, venue.name)"
+                  :disabled="deletingVenueId === venue.id"
+                  title="Venue verwijderen"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  {{ deletingVenueId === venue.id ? 'Verwijderen...' : 'Verwijderen' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -900,6 +914,7 @@ let geocodingTimeout = null
 // User Venues
 const userVenues = ref([])
 const loadingVenues = ref(false)
+const deletingVenueId = ref(null)
 
 const handleLogin = (loginData) => {
   // User is already logged in via useAuth composable
@@ -952,6 +967,25 @@ const fetchUserVenues = async () => {
     console.error('Error fetching user venues:', error)
   } finally {
     loadingVenues.value = false
+  }
+}
+
+// Delete venue
+const handleDeleteVenue = async (venueId, venueName) => {
+  if (!confirm(`Weet je zeker dat je "${venueName}" wilt verwijderen? Dit verwijdert ook alle gerelateerde data (adres, contact, foto's, status, etc.). Deze actie kan niet ongedaan worden gemaakt.`)) {
+    return
+  }
+
+  deletingVenueId.value = venueId
+  try {
+    await venuesService.delete(venueId)
+    await fetchUserVenues() // Refresh list
+    alert('Venue succesvol verwijderd')
+  } catch (error) {
+    console.error('Error deleting venue:', error)
+    alert('Er is een fout opgetreden bij het verwijderen van het venue: ' + (error.response?.data?.error || error.message || 'Onbekende fout'))
+  } finally {
+    deletingVenueId.value = null
   }
 }
 
@@ -2321,6 +2355,12 @@ const closeVenueModal = () => {
   border-radius: 12px;
 }
 
+.venue-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .venue-info h3 {
   color: #9b5cff;
   font-size: 18px;
@@ -2356,6 +2396,37 @@ const closeVenueModal = () => {
 
 .btn-edit:hover {
   background: rgba(155, 92, 255, 0.2);
+}
+
+.btn-delete-venue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 8px;
+  color: #ef4444;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-delete-venue:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.2);
+  border-color: #ef4444;
+  transform: translateY(-2px);
+}
+
+.btn-delete-venue:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-delete-venue svg {
+  width: 16px;
+  height: 16px;
 }
 
 .btn-add-venue {

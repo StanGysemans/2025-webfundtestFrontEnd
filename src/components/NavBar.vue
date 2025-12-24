@@ -70,11 +70,14 @@ const isAdmin = computed(() => {
   padding: 14px 24px;
   color: #cfcfcf;
   text-decoration: none;
+  border-left: 4px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .nav-links a:hover {
-  background-color: #1a1a1a;
+  background-color: #1f1f1f;
   color: #9b5cff;
+  border-left: 4px solid #9b5cff;
 }
 
 .active {
