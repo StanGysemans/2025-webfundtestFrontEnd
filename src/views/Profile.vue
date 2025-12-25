@@ -102,8 +102,15 @@
             <button class="btn-auth" @click="showLogin = true">Login</button>
             <button class="btn-auth" @click="showRegister = true">Registreren</button>
           </div>
-          <div v-else class="logout-button">
+          <div v-else class="footer-buttons">
             <button class="btn-logout" @click="handleLogout">Uitloggen</button>
+            <button class="btn-delete-account" @click="showDeleteAccountModal = true" :disabled="deletingAccount">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              {{ deletingAccount ? 'Verwijderen...' : 'Account Verwijderen' }}
+            </button>
           </div>
         </div>
       </div>
@@ -272,6 +279,63 @@
               {{ roleRequestLoading ? 'Verzenden...' : 'Aanvraag Verzenden' }}
             </button>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- DELETE ACCOUNT CONFIRMATION MODAL -->
+    <div v-if="showDeleteAccountModal" class="modal-overlay" @click.self="showDeleteAccountModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Account Verwijderen</h2>
+          <button class="modal-close" @click="showDeleteAccountModal = false">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="delete-warning">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <h3>Waarschuwing: Deze actie kan niet ongedaan worden gemaakt!</h3>
+            <p>Als je je account verwijdert, wordt alle volgende informatie permanent verwijderd:</p>
+            <ul>
+              <li>Je profiel en persoonlijke gegevens</li>
+              <li>Al je venues (inclusief foto's en alle gerelateerde data)</li>
+              <li>Je vriendschappen en chatgeschiedenis</li>
+              <li>Je favorieten en feedback</li>
+              <li>Alle andere data die aan je account is gekoppeld</li>
+            </ul>
+            <p class="warning-text">Typ <strong>"VERWIJDER"</strong> in het onderstaande veld om te bevestigen:</p>
+            <div class="form-group">
+              <input 
+                type="text" 
+                v-model="deleteConfirmationText" 
+                placeholder="Typ VERWIJDER om te bevestigen"
+                class="delete-confirmation-input"
+                :class="{ 'error': deleteConfirmationError }"
+              />
+              <span v-if="deleteConfirmationError" class="error-message">{{ deleteConfirmationError }}</span>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-cancel" @click="showDeleteAccountModal = false" :disabled="deletingAccount">
+              Annuleren
+            </button>
+            <button 
+              type="button" 
+              class="btn-delete-confirm" 
+              @click="confirmDeleteAccount"
+              :disabled="deletingAccount || deleteConfirmationText !== 'VERWIJDER'"
+            >
+              {{ deletingAccount ? 'Verwijderen...' : 'Account Permanent Verwijderen' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -573,6 +637,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Login from '@/views/Login.vue'
 import Register from '@/views/Register.vue'
 import { useAuth } from '@/composables/useAuth.js'
@@ -581,7 +646,8 @@ import { roleRequestsService } from '@/services/rolerequests.service.js'
 import { venuesService } from '@/services/venues.service.js'
 import { geocodingService } from '@/services/geocoding.service.js'
 
-const { isAuthenticated, user } = useAuth()
+const router = useRouter()
+const { isAuthenticated, user, logout } = useAuth()
 
 // User Info - leeg als niet ingelogd
 const userInfo = ref({
@@ -847,6 +913,7 @@ const showLogin = ref(false)
 const showRegister = ref(false)
 const showAddVenue = ref(false)
 const showRoleRequestModal = ref(false)
+const showDeleteAccountModal = ref(false)
 const editingVenueIndex = ref(null)
 
 // Role Request
@@ -916,6 +983,11 @@ const userVenues = ref([])
 const loadingVenues = ref(false)
 const deletingVenueId = ref(null)
 
+// Delete Account
+const deletingAccount = ref(false)
+const deleteConfirmationText = ref('')
+const deleteConfirmationError = ref('')
+
 const handleLogin = (loginData) => {
   // User is already logged in via useAuth composable
   // Fetch user data after login
@@ -930,10 +1002,74 @@ const handleRegister = (registerData) => {
 }
 
 const handleLogout = () => {
-  const { logout } = useAuth()
   logout()
   fetchUserData() // Reset user info
 }
+
+const confirmDeleteAccount = async () => {
+  if (!isAuthenticated.value || !user.value?.UserID) {
+    alert('Je moet ingelogd zijn om je account te verwijderen')
+    showDeleteAccountModal.value = false
+    return
+  }
+
+  // Validate confirmation text
+  if (deleteConfirmationText.value !== 'VERWIJDER') {
+    deleteConfirmationError.value = 'Je moet exact "VERWIJDER" typen om te bevestigen'
+    return
+  }
+
+  deleteConfirmationError.value = ''
+  deletingAccount.value = true
+
+  try {
+    await usersService.delete()
+    
+    // Close modal
+    showDeleteAccountModal.value = false
+    deleteConfirmationText.value = ''
+    
+    // Logout and clear data
+    logout()
+    localStorage.removeItem('avatarColor')
+    
+    // Show success message
+    alert('Je account is succesvol verwijderd. We zijn je dankbaar voor het gebruik van UitgaansFinder!')
+    
+    // Redirect to home
+    router.push('/')
+  } catch (error) {
+    console.error('Error deleting account:', error)
+    
+    let errorMessage = 'Er is een fout opgetreden bij het verwijderen van je account'
+    
+    if (error.response?.status === 401) {
+      errorMessage = 'Je sessie is verlopen. Log opnieuw in en probeer het opnieuw.'
+    } else if (error.response?.status === 403) {
+      errorMessage = 'Je hebt geen toestemming om je account te verwijderen.'
+    } else if (error.response?.status === 404) {
+      errorMessage = 'Account niet gevonden.'
+    } else if (error.response?.status === 500) {
+      errorMessage = 'Er is een serverfout opgetreden. Probeer het later opnieuw of neem contact op met de beheerder.'
+    } else if (error.response?.data?.error) {
+      errorMessage = error.response.data.error
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    alert(errorMessage)
+  } finally {
+    deletingAccount.value = false
+  }
+}
+
+// Watch for modal opening to reset confirmation
+watch(showDeleteAccountModal, (isOpen) => {
+  if (isOpen) {
+    deleteConfirmationText.value = ''
+    deleteConfirmationError.value = ''
+  }
+})
 
 // Fetch user venues
 const fetchUserVenues = async () => {
@@ -2058,6 +2194,13 @@ const closeVenueModal = () => {
   box-shadow: 0 4px 12px rgba(155, 92, 255, 0.3);
 }
 
+.footer-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
 .logout-button {
   width: 100%;
 }
@@ -2079,6 +2222,40 @@ const closeVenueModal = () => {
   background: rgba(239, 68, 68, 0.3);
   border-color: rgba(239, 68, 68, 0.5);
   transform: translateY(-2px);
+}
+
+.btn-delete-account {
+  width: 100%;
+  padding: 12px 24px;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-radius: 10px;
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-delete-account:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.25);
+  border-color: rgba(220, 38, 38, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+}
+
+.btn-delete-account:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-delete-account svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* VENUE REGISTRATION */
@@ -2862,5 +3039,104 @@ const closeVenueModal = () => {
 
 .sfeerbeelden-upload {
   margin-top: 8px;
+}
+
+/* DELETE ACCOUNT MODAL */
+.delete-warning {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.delete-warning svg {
+  color: #ef4444;
+  margin-bottom: 16px;
+}
+
+.delete-warning h3 {
+  color: #ef4444;
+  font-size: 20px;
+  margin: 16px 0;
+}
+
+.delete-warning p {
+  color: #eaeaea;
+  margin: 12px 0;
+  text-align: left;
+}
+
+.delete-warning ul {
+  text-align: left;
+  color: #cfcfcf;
+  margin: 16px 0;
+  padding-left: 24px;
+}
+
+.delete-warning ul li {
+  margin: 8px 0;
+}
+
+.warning-text {
+  font-weight: 600;
+  color: #ef4444 !important;
+  margin-top: 24px !important;
+}
+
+.delete-confirmation-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(15, 15, 15, 0.5);
+  border: 2px solid #1f1f1f;
+  border-radius: 10px;
+  color: #eaeaea;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  outline: none;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.delete-confirmation-input:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.delete-confirmation-input.error {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.error-message {
+  display: block;
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.btn-delete-confirm {
+  padding: 12px 24px;
+  background: #ef4444;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-delete-confirm:hover:not(:disabled) {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-delete-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #991b1b;
 }
 </style>

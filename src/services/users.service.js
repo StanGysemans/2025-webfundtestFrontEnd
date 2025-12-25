@@ -31,5 +31,12 @@ export const usersService = {
   async updateLocationPreference(data) {
     const response = await api.put('/users/me/location-preference', data)
     return response.data
+  },
+
+  // Delete user account (requires auth) - deletes own account
+  // Note: Backend must implement DELETE /users/me endpoint
+  async delete() {
+    const response = await api.delete('/users/me')
+    return response.data
   }
 }

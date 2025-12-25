@@ -175,6 +175,18 @@
             @click="openVenueDetail(venue)"
           >
             <div class="venue-content">
+              <!-- Favorite Button -->
+              <button 
+                class="favorite-btn"
+                :class="{ 'is-favorite': venue.isFavorite, 'not-authenticated': !isAuthenticated }"
+                @click.stop="toggleFavorite(venue)"
+                :title="!isAuthenticated ? 'Log in om favorieten toe te voegen' : (venue.isFavorite ? 'Verwijder uit favorieten' : 'Voeg toe aan favorieten')"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+              </button>
+              
               <!-- Venue Photo -->
               <div class="venue-photo">
                 <img v-if="venue.image" :src="venue.image" :alt="venue.name" @error="handleImageError" />
@@ -250,12 +262,25 @@
         <div class="id-card">
           <div class="id-card-header">
             <h2>{{ selectedVenue.name }}</h2>
-            <button class="modal-close" @click="closeVenueDetail">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
+            <div class="modal-header-actions">
+              <button 
+                v-if="isAuthenticated"
+                class="favorite-btn-modal"
+                :class="{ 'is-favorite': selectedVenue.isFavorite }"
+                @click="toggleFavorite(selectedVenue)"
+                :title="selectedVenue.isFavorite ? 'Verwijder uit favorieten' : 'Voeg toe aan favorieten'"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+              </button>
+              <button class="modal-close" @click="closeVenueDetail">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
           </div>
           
           <div class="id-card-body">
@@ -409,9 +434,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { venuesService } from '@/services/venues.service.js'
 import { venuePingService } from '@/services/venueping.service.js'
+import { favoritesService } from '@/services/favorites.service.js'
 import { useAuth } from '@/composables/useAuth.js'
 
-const { isAuthenticated } = useAuth()
+const { isAuthenticated, user } = useAuth()
 
 const searchQuery = ref('')
 
@@ -426,6 +452,10 @@ const filters = ref({
 const venues = ref([])
 const loading = ref(false)
 const selectedVenue = ref(null)
+
+// Favorites system
+const favorites = ref([])
+const favoriteLoading = ref({}) // Track loading state per venue
 
 // Ping system
 const pingPercentage = ref(50)
@@ -464,8 +494,27 @@ const fetchVenues = async () => {
       type: typeof crowdLevelData?.percentage
     })))
     
+    // Fetch favorites if user is authenticated
+    let userFavorites = []
+    if (isAuthenticated.value) {
+      try {
+        userFavorites = await favoritesService.getAll()
+        console.log('[DEBUG] User favorites loaded:', userFavorites.length)
+      } catch (error) {
+        console.error('Error fetching favorites:', error)
+      }
+    }
+    
     // Transform API data to our format
     venues.value = venuesWithCrowdLevel.map(({ venue, crowdLevelData }) => {
+      // Check if venue is favorited
+      const favorite = userFavorites.find(fav => 
+        fav.VenueID === venue.VenueID || 
+        fav.venue?.VenueID === venue.VenueID ||
+        (fav.venue && fav.venue.VenueID === venue.VenueID)
+      )
+      
+      const isFavorite = !!favorite
       const latestStatus = venue.venuestatus?.[0]
       const address = venue.venueaddress?.[0]
       const openingHours = venue.OpeningHours
@@ -542,7 +591,9 @@ const fetchVenues = async () => {
         averagePrice: venue.AveragePrice,
         image: imageUrl,
         hoofdFoto: hoofdFotoUrl,
-        sfeerbeelden: sfeerbeelden
+        sfeerbeelden: sfeerbeelden,
+        isFavorite: isFavorite,
+        favoriteId: favorite?.FavoriteID || null
       }
     })
   } catch (error) {
@@ -798,6 +849,69 @@ const handleImageError = (event) => {
   event.target.style.display = 'none'
 }
 
+// Toggle favorite for a venue
+const toggleFavorite = async (venue) => {
+  if (!isAuthenticated.value) {
+    alert('Je moet ingelogd zijn om favorieten toe te voegen. Log in via je profiel.')
+    return
+  }
+
+  const venueId = venue.id || venue.VenueID
+  if (!venueId) {
+    console.error('No venue ID found')
+    return
+  }
+
+  // Set loading state
+  favoriteLoading.value[venueId] = true
+
+  try {
+    if (venue.isFavorite) {
+      // Remove from favorites
+      if (venue.favoriteId) {
+        await favoritesService.remove(venue.favoriteId)
+      } else {
+        await favoritesService.removeByVenue(venueId)
+      }
+      
+      // Update venue in list
+      const venueIndex = venues.value.findIndex(v => (v.id || v.VenueID) === venueId)
+      if (venueIndex !== -1) {
+        venues.value[venueIndex].isFavorite = false
+        venues.value[venueIndex].favoriteId = null
+      }
+      
+      // Update selected venue if it's the same
+      if (selectedVenue.value && (selectedVenue.value.id || selectedVenue.value.VenueID) === venueId) {
+        selectedVenue.value.isFavorite = false
+        selectedVenue.value.favoriteId = null
+      }
+    } else {
+      // Add to favorites
+      const favorite = await favoritesService.add(venueId)
+      
+      // Update venue in list
+      const venueIndex = venues.value.findIndex(v => (v.id || v.VenueID) === venueId)
+      if (venueIndex !== -1) {
+        venues.value[venueIndex].isFavorite = true
+        venues.value[venueIndex].favoriteId = favorite.FavoriteID || favorite.favoriteId
+      }
+      
+      // Update selected venue if it's the same
+      if (selectedVenue.value && (selectedVenue.value.id || selectedVenue.value.VenueID) === venueId) {
+        selectedVenue.value.isFavorite = true
+        selectedVenue.value.favoriteId = favorite.FavoriteID || favorite.favoriteId
+      }
+    }
+  } catch (error) {
+    console.error('Error toggling favorite:', error)
+    const errorMessage = error.response?.data?.error || error.message || 'Er is een fout opgetreden'
+    alert(`Fout bij ${venue.isFavorite ? 'verwijderen' : 'toevoegen'} van favoriet: ${errorMessage}`)
+  } finally {
+    favoriteLoading.value[venueId] = false
+  }
+}
+
 // Update open/closed status periodically
 let statusUpdateInterval = null
 
@@ -858,6 +972,15 @@ const filteredVenues = computed(() => {
     })
   }
 
+  // Sort: favorieten eerst, dan de rest
+  result.sort((a, b) => {
+    // Favorieten eerst
+    if (a.isFavorite && !b.isFavorite) return -1
+    if (!a.isFavorite && b.isFavorite) return 1
+    // Als beide favoriet zijn of beide niet, behoud originele volgorde
+    return 0
+  })
+
   // Filter op bezetting percentage
   if (filters.value.crowdLevelMin > 0 || filters.value.crowdLevelMax < 100) {
     result = result.filter(venue => {
@@ -868,6 +991,15 @@ const filteredVenues = computed(() => {
       return percentage >= filters.value.crowdLevelMin && percentage <= filters.value.crowdLevelMax
     })
   }
+
+  // Sort: favorieten eerst, dan de rest
+  result.sort((a, b) => {
+    // Favorieten eerst
+    if (a.isFavorite && !b.isFavorite) return -1
+    if (!a.isFavorite && b.isFavorite) return 1
+    // Als beide favoriet zijn of beide niet, behoud originele volgorde
+    return 0
+  })
 
   return result
 })
@@ -1537,6 +1669,67 @@ const applyFilters = async () => {
 .venue-content {
   display: flex;
   gap: 0;
+  position: relative;
+}
+
+.favorite-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 100;
+  width: 40px;
+  height: 40px;
+  background: rgba(155, 92, 255, 0.2);
+  border: 2px solid rgba(155, 92, 255, 0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #9b5cff;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(155, 92, 255, 0.2);
+}
+
+.favorite-btn:hover {
+  background: rgba(155, 92, 255, 0.3);
+  border-color: rgba(155, 92, 255, 0.7);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(155, 92, 255, 0.3);
+}
+
+.favorite-btn.is-favorite {
+  background: rgba(155, 92, 255, 0.8);
+  border-color: #9b5cff;
+  color: white;
+}
+
+.favorite-btn.is-favorite:hover {
+  background: rgba(155, 92, 255, 0.9);
+  border-color: #8a4de6;
+  box-shadow: 0 4px 12px rgba(155, 92, 255, 0.4);
+}
+
+.favorite-btn.not-authenticated {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.favorite-btn.not-authenticated:hover {
+  opacity: 0.8;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.favorite-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+.favorite-btn.is-favorite svg {
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 .venue-photo {
@@ -1770,6 +1963,55 @@ const applyFilters = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.favorite-btn-modal {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+  backdrop-filter: blur(4px);
+}
+
+.favorite-btn-modal:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.1);
+}
+
+.favorite-btn-modal.is-favorite {
+  background: rgba(239, 68, 68, 0.9);
+  border-color: #ef4444;
+  color: white;
+}
+
+.favorite-btn-modal.is-favorite:hover {
+  background: rgba(220, 38, 38, 1);
+  border-color: #dc2626;
+}
+
+.favorite-btn-modal svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2;
+}
+
+.favorite-btn-modal.is-favorite svg {
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 .venue-detail-modal .id-card-header h2 {
